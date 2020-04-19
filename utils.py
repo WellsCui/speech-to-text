@@ -138,6 +138,14 @@ def read_corpus_from_LJSpeech(file_path, source, line_num=-1):
             break
     return data
 
+def get_voice_files_and_corpus(voice_path: str, voice_num=-1) -> Tuple[List[str], List[List[str]]]:
+    corpus_map = read_corpus_from_LJSpeech(voice_path + '/metadata.csv', 'tgt', voice_num)
+    voice_files = []
+    corpus = []
+    for voice_file in corpus_map:
+        voice_files.append(voice_path+'/'+voice_file+'.wav')
+        corpus.append(corpus_map[voice_file])
+    return voice_files, corpus
 
 
 def batch_iter(data, batch_size, shuffle=False):
