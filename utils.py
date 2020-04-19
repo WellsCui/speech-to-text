@@ -121,18 +121,28 @@ def read_corpus_from_LJSpeech(file_path, source, line_num=-1):
     @param source (str): "tgt" or "src" indicating whether text
         is of the source language or target language
     """
-    data = []
+    data = {}
     line_count = 0
     for line in open(file_path):
-        sent = line.split('|')[-1].strip()\
-            .replace(",", "")\
-            .replace(":", "")\
-            .replace('"', "")\
+        sent_info = line.split('|')
+        voice_name = sent_info[0]
+        sent = re.sub('[,";:]', '', sent_info[-1])\
+            .lower()\
+            .replace("-- ", "")\
+            .replace("-", " ")\
+            .replace("'s ", " 's ")\
+            .replace(". ", " ")\
+            .strip()\
             .split(' ')
+        last_char = sent[-1][-1]
+        if  last_char in ['.', ';', ","]:
+            sent[-1] = sent[-1][:-1]
+        #     sent = sent + [last_char]
+
         # only append <s> and </s> to the target sentence
         if source == 'tgt':
             sent = ['<s>'] + sent + ['</s>']
-        data.append(sent)
+        data[voice_name]=sent
         line_count+=1
         if line_count==line_num:
             break
@@ -197,6 +207,16 @@ def load_voices(voice_path, sample_rate, resample_rate=8000, voice_num=-1):
                 break
     return voices
 
+
+def load_voices_files(voice_files, sample_rate, resample_rate=8000, voice_num=-1):
+    voices = []
+    for voice_file in voice_files:
+        samples, sample_rate = librosa.load(voice_file, sr=sample_rate)
+        samples = librosa.resample(samples, sample_rate, resample_rate)
+        voices.append(samples)
+        if len(voices) == voice_num:
+            break
+    return voices
 
 def split_source_with_pad(source: List[List[float]], chunk_size=2048, max_chunk=40, pad_value=0.0) -> (np.ndarray, List[int]):
     """ split source with pad.
