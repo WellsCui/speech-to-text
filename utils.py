@@ -17,7 +17,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import librosa  # for audio processing
-
 import re
 from typing import Callable, Any, Iterable
 
@@ -113,6 +112,7 @@ def read_corpus(file_path, source):
 
     return data
 
+
 def read_corpus_from_LJSpeech(file_path, source, line_num=-1):
     """ Read file, where each sentence is dilineated by a `\n`.
     @param file_path (str): path to file containing corpus
@@ -121,16 +121,28 @@ def read_corpus_from_LJSpeech(file_path, source, line_num=-1):
     @param source (str): "tgt" or "src" indicating whether text
         is of the source language or target language
     """
-    data = []
+    data = {}
     line_count = 0
     for line in open(file_path):
-        sent = line[11:].strip().split(' ')
+        sent_info = line.split('|')
+        voice_name = sent_info[0]
+        sent = re.sub('[,";:]', '', sent_info[-1])\
+            .lower()\
+            .replace("-- ", "")\
+            .replace("-", " ")\
+            .replace("'s ", " 's ")\
+            .strip()\
+            .split(' ')
+        last_char = sent[-1][-1]
+        if  last_char in ['.', ';', ","]:
+            sent[-1] = sent[-1][:-1]
+        #     sent = sent + [last_char]
         # only append <s> and </s> to the target sentence
         if source == 'tgt':
             sent = ['<s>'] + sent + ['</s>']
-        data.append(sent)
-        line_count+=1
-        if line_count==line_num:
+        data[voice_name] = sent
+        line_count += 1
+        if line_count == line_num:
             break
     return data
 
@@ -181,17 +193,35 @@ def read_voice(voice_file, sample_rate, resample_rate=8000, chunk_size=2048, pad
     return speech_chunks
 
 
-def load_voices(voice_path, sample_rate, resample_rate=8000, voice_num=-1):
+def load_voices(voice_files, sample_rate, resample_rate=8000, voice_num=-1):
     voices = []
+    for voice_file in voice_files:
+        samples, sample_rate = librosa.load(voice_file, sr=sample_rate)
+        samples = librosa.resample(samples, sample_rate, resample_rate)
+        voices.append(samples)
+        if len(voices) == voice_num:
+            break
+    return voices
+
+
+# def load_voice_files(voice_files, sample_rate, resample_rate=8000):
+#     voices = []
+#     for voice_file in voice_files:
+#         samples, sample_rate = librosa.load(voice_file, sr=sample_rate)
+#         samples = librosa.resample(samples, sample_rate, resample_rate)
+#         voices.append(samples)
+#     return voices
+
+
+def get_voice_files(voice_path, file_num=-1):
+    voice_files = []
     for file in os.listdir(voice_path):
         if file.endswith(".wav"):
             voice_file = os.path.join(voice_path, file)
-            samples, sample_rate = librosa.load(voice_file, sr=sample_rate)
-            samples = librosa.resample(samples, sample_rate, resample_rate)
-            voices.append(samples)
-            if len(voices) == voice_num:
+            voice_files.append(voice_file)
+            if len(voice_files) == file_num:
                 break
-    return voices
+    return voice_files
 
 
 def split_source_with_pad(source: List[List[float]], chunk_size=2048, max_chunk=40, pad_value=0.0) -> (np.ndarray, List[int]):
@@ -208,10 +238,11 @@ def split_source_with_pad(source: List[List[float]], chunk_size=2048, max_chunk=
         sample_len = len(data)
         chunk_num, left = divmod(sample_len, chunk_size)
         if left == 0:
-            lengths.append(chunk_num) 
+            lengths.append(chunk_num)
         else:
             lengths.append(chunk_num+1)
-        padded_data = np.concatenate((data, [pad_value] * (chunk_size*max_chunk - sample_len)))
+        padded_data = np.concatenate(
+            (data, [pad_value] * (chunk_size*max_chunk - sample_len)))
         chunks = np.split(padded_data, max_chunk)
         splited_source.append(chunks)
     return np.array(splited_source), lengths
@@ -259,40 +290,44 @@ def split_voice_with_pad(voice: List[float], chunk_size=1024, pad_value=0.0) -> 
                 length = length + 1
                 sum = sum + abs(voice[idx+i])
         next_avg = sum/length
+        current_chunk['avg'] = current_chunk['sum'] / current_chunk['len']
         return next_avg < current_chunk['avg'] * 0.5 or next_avg > current_chunk['avg'] * 2 or current_chunk['len'] >= chunk_size
 
     def withPads(chunk):
-        if chunk['len'] == chunk_size:
+        chunk_len = chunk['len']
+        if chunk_len == chunk_size:
             return chunk['data']
-        return chunk['data'] + [pad_value] * (chunk_size - chunk['len'])
+        return chunk['data'].tolist() + [pad_value] * (chunk_size - chunk_len)
 
-    current_chunk = None
-    for i in range(len(voice)):
-        if current_chunk is None:
-            current_chunk = {
-                'start': i,
-                'data': [voice[i]],
-                'sum': voice[i],
-                'len': 1,
-                'avg': voice[i],
+    current_chunk = {
+                'start': 0,
+                'end': 0,
+                'sum': 0.0,
+                'len': 0,
             }
-        elif current_chunk is not None and isGap(current_chunk, i) and current_chunk['len'] > 1000:
+    for i in range(len(voice)):
+        if  current_chunk['len'] > 1000 and isGap(current_chunk, i):
             current_chunk['end'] = i
+            current_chunk['data'] = voice[current_chunk['start']:current_chunk['end']]
             chunks.append(withPads(current_chunk))
             current_chunk = {
                 'start': i,
-                'data': [voice[i]],
+                # 'data': [voice[i]],
                 'sum': voice[i],
                 'len': 1,
-                'avg': voice[i],
             }
-        elif current_chunk is not None:
-            current_chunk['data'].append(voice[i])
+        else:
+            # current_chunk['data'].append(voice[i])
             current_chunk['sum'] = current_chunk['sum'] + abs(voice[i])
             current_chunk['len'] = current_chunk['len'] + 1
-            current_chunk['avg'] = current_chunk['sum'] / current_chunk['len']
+            # current_chunk['avg'] = current_chunk['sum'] / current_chunk['len']
+    if current_chunk['len'] > 500:
+        current_chunk['data'] = voice[current_chunk['start']:]
+        chunks.append(withPads(current_chunk))
 
     return chunks
+
+
 # def to_input_tensor(source: np.ndarray, device: torch.device) -> torch.Tensor:
 #     return torch.tensor(source, dtype=torch.float, device=device).transpose(0, 1)
 

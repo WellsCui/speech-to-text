@@ -19,7 +19,7 @@ from torch.nn.utils.rnn import pad_packed_sequence, pack_padded_sequence
 from voice_cnn import VoiceCNN
 from model_embeddings import ModelEmbeddings
 from char_decoder import CharDecoder
-from utils import split_source_with_pad
+from utils import split_source_with_pad, split_voices_with_pad
 
 Hypothesis = namedtuple('Hypothesis', ['value', 'score'])
 
@@ -81,7 +81,9 @@ class NMT(nn.Module):
                                     each example in the input batch. Here b = batch size.
         """
         # Compute sentence lengths
-        source_padded, source_lengths = split_source_with_pad(source, self.embed_size, 80)
+        voicelength = 80*1024
+        split_size = 1024
+        source_padded, source_lengths = split_voices_with_pad(source, split_size, 80)
         source_padded_tensor = torch.tensor(source_padded, dtype=torch.float, device=self.device)
         X = self.voiceCNN(source_padded_tensor).transpose(0, 1)
 
