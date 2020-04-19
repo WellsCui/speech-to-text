@@ -122,7 +122,11 @@ def read_corpus_from_LJSpeech(file_path, source, line_num=-1):
     data = []
     line_count = 0
     for line in open(file_path):
-        sent = line[11:].strip().split(' ')
+        sent = line.split('|')[-1].strip()\
+            .replace(",", "")\
+            .replace(":", "")\
+            .replace('"', "")\
+            .split(' ')
         # only append <s> and </s> to the target sentence
         if source == 'tgt':
             sent = ['<s>'] + sent + ['</s>']
