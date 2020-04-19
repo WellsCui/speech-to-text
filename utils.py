@@ -11,13 +11,15 @@ Sahil Chopra <schopra8@stanford.edu>
 import os
 import math
 from typing import List
-
+from typing import List, Tuple, Dict, Set, Union
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import librosa  # for audio processing
 
+import re
+from typing import Callable, Any, Iterable
 
 def pad_sents_char(sents, char_pad_token):
     """ Pad list of sentences according to the longest sentence in the batch and max_word_length.
@@ -211,6 +213,82 @@ def split_source_with_pad(source: List[List[float]], chunk_size=2048, max_chunk=
     return np.array(splited_source), lengths
 
 
+def split_voices_with_pad(voices: List[List[float]], chunk_size=1024, max_chunk=80, pad_value=0.0) -> (np.ndarray, List[int]):
+    """ split source with pad.
+
+        @param source (List[List[float]]): source to be splitted
+        @param chunk_size (int): split Size
+        @param max_chunk (int): max number of chunk
+        @param pad_value (float): the pad value
+        """
+    splited_source = []
+    lengths = []
+    for voice in voices:
+        splited_voice = split_voice_with_pad(voice, chunk_size, pad_value)
+        chunk_num = len(splited_voice)
+        if chunk_num < max_chunk:
+            lengths.append(chunk_num)
+            padded_data = splited_voice + [[pad_value]*chunk_size]*(max_chunk - chunk_num)
+        else:
+            lengths.append(max_chunk)
+            padded_data = splited_voice[:max_chunk]
+        splited_source.append(padded_data)
+    return np.array(splited_source), lengths
+
+
+def split_voice_with_pad(voice: List[float], chunk_size=1024, pad_value=0.0) -> List[List[float]]:
+    """ split voice with pad.
+
+        @param voice (List[float]): samples to be splitted
+        @param chunk_size (int): split Size
+        @param max_chunk (int): max number of chunk
+        @param pad_value (float): the pad value
+        """
+    chunks = []
+    peek_length = 10
+
+    def isGap(current_chunk, idx):
+        sum = 0
+        length = 0
+        for i in range(peek_length):
+            if idx+i < len(voice):
+                length = length + 1
+                sum = sum + abs(voice[idx+i])
+        next_avg = sum/length
+        return next_avg < current_chunk['avg'] * 0.5 or next_avg > current_chunk['avg'] * 2 or current_chunk['len'] >= chunk_size
+
+    def withPads(chunk):
+        if chunk['len'] == chunk_size:
+            return chunk['data']
+        return chunk['data'] + [pad_value] * (chunk_size - chunk['len'])
+
+    current_chunk = None
+    for i in range(len(voice)):
+        if current_chunk is None:
+            current_chunk = {
+                'start': i,
+                'data': [voice[i]],
+                'sum': voice[i],
+                'len': 1,
+                'avg': voice[i],
+            }
+        elif current_chunk is not None and isGap(current_chunk, i) and current_chunk['len'] > 1000:
+            current_chunk['end'] = i
+            chunks.append(withPads(current_chunk))
+            current_chunk = {
+                'start': i,
+                'data': [voice[i]],
+                'sum': voice[i],
+                'len': 1,
+                'avg': voice[i],
+            }
+        elif current_chunk is not None:
+            current_chunk['data'].append(voice[i])
+            current_chunk['sum'] = current_chunk['sum'] + abs(voice[i])
+            current_chunk['len'] = current_chunk['len'] + 1
+            current_chunk['avg'] = current_chunk['sum'] / current_chunk['len']
+
+    return chunks
 # def to_input_tensor(source: np.ndarray, device: torch.device) -> torch.Tensor:
 #     return torch.tensor(source, dtype=torch.float, device=device).transpose(0, 1)
 
