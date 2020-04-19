@@ -37,20 +37,10 @@ class VoiceCNN(nn.Module):
 
         @returns output (torch.Tensor): a variable/tensor of shape (B, N, output_channels)
         """
-        # X = input.transpose(1, 2)
-        # print("x.shape:", X.shape)
-        # x_conv = self.conv1d(X)
-        # x_conv_out = F.max_pool1d(torch.relu(x_conv), self.kernel_size)
-        # return x_conv_out
-
-        # X = self.char_embedding(input).transpose(0, 1)
-
         tensors = []
         for batch_index in range(input.shape[0]):
             x_conv = self.conv1d(input[batch_index].unsqueeze(1))
-            # print("x_conv.shape:", x_conv.shape)
             x_max, _ = torch.relu(x_conv).max(dim=-1, keepdim=False)
-            # print("x_max.shape:", x_max.shape)
             tensors.append(x_max) 
         output = torch.stack(tensors) 
         return output
