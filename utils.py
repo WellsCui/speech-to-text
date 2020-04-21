@@ -200,31 +200,31 @@ def batch_iter(data, batch_size, shuffle=False):
 
         yield src_sents, tgt_sents
 
-
-def batch_iter_to_queue(data, batch_queue, batch_size, shuffle=False):
+def batch_iter_to_queue(data, batch_queue, epoch_num, batch_size, shuffle=False):
     """ Yield batches of source and target sentences reverse sorted by length (largest to smallest).
     @param data (list of (src_sent, tgt_sent)): list of tuples containing source and target sentence
     @param batch_size (int): batch size
     @param shuffle (boolean): whether to randomly shuffle the dataset
     """
-    print("batch_iter_to_queue started")
-    batch_num = math.ceil(len(data) / batch_size)
-    index_array = list(range(len(data)))
+    for epoch in range(epoch_num):
+      # print("epoch:", epoch, "started")
+      batch_num = math.ceil(len(data) / batch_size)
+      index_array = list(range(len(data)))
 
-    if shuffle:
-        np.random.shuffle(index_array)
+      if shuffle:
+          np.random.shuffle(index_array)
 
-    for i in range(batch_num):
-        indices = index_array[i * batch_size: (i + 1) * batch_size]
-        examples = [data[idx] for idx in indices]
+      for i in range(batch_num):
+          indices = index_array[i * batch_size: (i + 1) * batch_size]
+          examples = [data[idx] for idx in indices]
 
-        examples = sorted(examples, key=lambda e: len(e[0]), reverse=True)
-        voice_files = [e[0] for e in examples]
-        voices = load_voices_files(voice_files, sample_rate, resample_rate)
-        tgt_sents = [e[1] for e in examples]
-        batch_queue.put((voices, tgt_sents))
-    batch_queue.put((None, None))
-    print("batch_iter_to_queue ended")
+          examples = sorted(examples, key=lambda e: len(e[0]), reverse=True)
+          voice_files = [e[0] for e in examples]
+          # voices = load_voices_files(voice_files, sample_rate, resample_rate)
+          voices = voice_files
+          tgt_sents = [e[1] for e in examples]
+          batch_queue.put((epoch, voices, tgt_sents))
+    batch_queue.put((None, None, None))
 
 
 def batch_iter_to_queue2(data, batch_queue, epoch_num, cache_repeat_count, cache_size, batch_size, shuffle=False):
