@@ -17,7 +17,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import librosa  # for audio processing
-
+from multiprocessing import Process, Queue
 import re
 from typing import Callable, Any, Iterable
 
@@ -151,13 +151,45 @@ def read_corpus_from_LJSpeech(file_path, source, line_num=-1):
 
 
 def get_voice_files_and_corpus(voice_path: str, voice_num=-1) -> Tuple[List[str], List[List[str]]]:
-    corpus_map = read_corpus_from_LJSpeech(voice_path + '/metadata.csv', 'tgt', voice_num)
+    corpus_map = read_corpus_from_LJSpeech(
+        voice_path + '/metadata.csv', 'tgt', voice_num)
     voice_files = []
     corpus = []
     for voice_file, sent in corpus_map:
         voice_files.append(voice_path+'/'+voice_file+'.wav')
         corpus.append(sent)
     return voice_files, corpus
+
+
+def load_train_data(voice_path: str, data_size: int, epoch_size: int, data_queue: Queue):
+    print("loading train data ...")
+    sample_rate = 22000
+    resample_rate = 8000
+    corpus_map = read_corpus_from_LJSpeech(
+        voice_path + '/metadata.csv', 'tgt', data_size)
+    voices = []
+    corpus = []
+    data_count = 0
+    epoch_count = 0
+    for voice_file, sent in corpus_map:
+        voice_file = voice_path+'/'+voice_file+'.wav'
+        samples, sample_rate = librosa.load(voice_file, sr=sample_rate)
+        voices.append(librosa.resample(samples, sample_rate, resample_rate))
+        corpus.append(sent)
+        epoch_count += 1
+        data_count += 1
+        if epoch_count == epoch_size:
+            print("push new epoch data ...")
+            data_queue.put(list(zip(voices, corpus)), True)
+            voices = []
+            corpus = []
+            epoch_count = 0
+        if data_count == data_size:
+            if len(voices) > 0:
+                data_queue.put(list(zip(voices, corpus)), True)
+            print("all train data has been loaded")
+            data_queue.put(None, True)
+            return
 
 
 def get_voice_files_and_corpus_by_indexes(voice_path: str, indexes) -> Tuple[List[str], List[List[str]]]:
@@ -200,6 +232,7 @@ def batch_iter(data, batch_size, shuffle=False):
 
         yield src_sents, tgt_sents
 
+
 def batch_iter_to_queue(data, batch_queue, epoch_num, batch_size, shuffle=False):
     """ Yield batches of source and target sentences reverse sorted by length (largest to smallest).
     @param data (list of (src_sent, tgt_sent)): list of tuples containing source and target sentence
@@ -207,68 +240,65 @@ def batch_iter_to_queue(data, batch_queue, epoch_num, batch_size, shuffle=False)
     @param shuffle (boolean): whether to randomly shuffle the dataset
     """
     for epoch in range(epoch_num):
-      # print("epoch:", epoch, "started")
-      batch_num = math.ceil(len(data) / batch_size)
-      index_array = list(range(len(data)))
+        # print("epoch:", epoch, "started")
+        batch_num = math.ceil(len(data) / batch_size)
+        index_array = list(range(len(data)))
 
-      if shuffle:
-          np.random.shuffle(index_array)
+        if shuffle:
+            np.random.shuffle(index_array)
 
-      for i in range(batch_num):
-          indices = index_array[i * batch_size: (i + 1) * batch_size]
-          examples = [data[idx] for idx in indices]
+        for i in range(batch_num):
+            indices = index_array[i * batch_size: (i + 1) * batch_size]
+            examples = [data[idx] for idx in indices]
 
-          examples = sorted(examples, key=lambda e: len(e[0]), reverse=True)
-          voice_files = [e[0] for e in examples]
-          # voices = load_voices_files(voice_files, sample_rate, resample_rate)
-          voices = voice_files
-          tgt_sents = [e[1] for e in examples]
-          batch_queue.put((epoch, voices, tgt_sents))
+            examples = sorted(examples, key=lambda e: len(e[0]), reverse=True)
+            voice_files = [e[0] for e in examples]
+            # voices = load_voices_files(voice_files, sample_rate, resample_rate)
+            voices = voice_files
+            tgt_sents = [e[1] for e in examples]
+            batch_queue.put((epoch, voices, tgt_sents))
     batch_queue.put((None, None, None))
 
 
-def batch_iter_to_queue2(data, batch_queue, epoch_num, cache_repeat_count, cache_size, batch_size, shuffle=False):
+def batch_iter_to_queue2(data_queue, batch_queue, epoch_num, batch_size, shuffle=False):
     """ Yield batches of source and target sentences reverse sorted by length (largest to smallest).
     @param data (list of (src_sent, tgt_sent)): list of tuples containing source and target sentence
     @param batch_size (int): batch size
     @param shuffle (boolean): whether to randomly shuffle the dataset
     """
-    for epoch in range(epoch_num):
-      print("epoch:", epoch, "started")
-      index_array = list(range(len(data)))
+    print("geting train data ...")
+    data = data_queue.get(True)
 
-      if shuffle:
-          np.random.shuffle(index_array)
+    while data is not None:
+        print("start training with new data(size = %s): ..." % len(data))
+        for epoch in range(epoch_num):
+            # print("epoch:", epoch, "started")
+            batch_num = math.ceil(len(data) / batch_size)
+            index_array = list(range(len(data)))
 
-      print("data len:", len(data))
+            if shuffle:
+                np.random.shuffle(index_array)
 
-      cache_num =  math.ceil(len(data) / cache_size)
-      for cache_idx in range(cache_num):
-          cache_indexes = index_array[cache_idx * cache_size: (cache_idx + 1) * cache_size]
-          print("cache_indexes len:", len(cache_indexes))
-          cache = [data[idx] for idx in cache_indexes]
+            for i in range(batch_num):
+                indices = index_array[i * batch_size: (i + 1) * batch_size]
+                examples = [data[idx] for idx in indices]
 
-          cache_voice_files, cache_tgt_sents = get_voice_files_and_corpus_by_indexes('dataset/train', cache)
-          cache_voices = load_voices_files(cache_voice_files, sample_rate, resample_rate)
+                examples = sorted(
+                    examples, key=lambda e: len(e[0]), reverse=True)
+                voice_files = [e[0] for e in examples]
+                # voices = load_voices_files(voice_files, sample_rate, resample_rate)
+                voices = voice_files
+                tgt_sents = [e[1] for e in examples]
+                # print("push batch data ...")
+                batch_queue.put((epoch, voices, tgt_sents), True)
+        print("geting train data ...")
+        data = data_queue.get(True)
+        if data is not None:
+            print("recieved train data (size = %d) ..." % len(data))
+        else:
+            print("recieved no train data")
 
-          
-          cache_index_array = list(range(len(cache)))
-          print("cache_voices len:", len(cache_voices))
-          print("cache_voice_files len:", len(cache_voice_files))
-          for rep in range(cache_repeat_count):
-              
-              if shuffle:
-                np.random.shuffle(cache_index_array)
-              print("epoch:", epoch, "cache:", cache_idx, "repeat:", rep)
-              batch_num = math.ceil(len(cache) / batch_size)
-              for i in range(batch_num):
-                  print("batch index:", (i + 1) * batch_size)
-                  itr_indexes = cache_index_array[i * batch_size: (i + 1) * batch_size]
-                  itr_voices = [cache_voices[bidx] for bidx in itr_indexes]
-                  itr_tgt_sents = [cache_tgt_sents[bidx] for bidx in itr_indexes]
-                  batch_queue.put((epoch, itr_voices, itr_tgt_sents))
     batch_queue.put((None, None, None))
-
 
 
 def read_voice(voice_file, sample_rate, resample_rate=8000, chunk_size=2048, pad_value=0.0):
@@ -394,8 +424,7 @@ def split_voice_with_pad(voice: List[float], chunk_size=1024, pad_value=0.0) -> 
     for i in range(len(voice)):
         if current_chunk['len'] > 1000 and isGap(current_chunk, i):
             current_chunk['end'] = i
-            current_chunk['data'] = voice[current_chunk['start']
-                :current_chunk['end']]
+            current_chunk['data'] = voice[current_chunk['start']:current_chunk['end']]
             chunks.append(withPads(current_chunk))
             current_chunk = {
                 'start': i,

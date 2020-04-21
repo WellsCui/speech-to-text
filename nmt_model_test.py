@@ -50,9 +50,11 @@ from typing import List, Tuple, Dict, Set, Union
 import numpy as np
 from nltk.translate.bleu_score import corpus_bleu, sentence_bleu, SmoothingFunction
 from multiprocessing import Process, Queue
-from utils import load_voices, load_voices_files, split_source_with_pad, read_corpus_from_LJSpeech, batch_iter, get_voice_files_and_corpus, batch_iter_to_queue
+from utils import load_voices, load_voices_files, split_source_with_pad, read_corpus_from_LJSpeech, batch_iter, get_voice_files_and_corpus, batch_iter_to_queue, batch_iter_to_queue2, load_train_data
 
 from vocab import Vocab, VocabEntry
+
+
 
 
 def train(args: Dict):
@@ -61,12 +63,12 @@ def train(args: Dict):
     """
     sample_rate = 22000
     resample_rate = 8000
-    train_records = 2
+    train_records = 8
     max_epoch = 10
     vocab = Vocab.load('dataset/vocab_full.json')
-    train_voices_files, corpus = get_voice_files_and_corpus('dataset/train/wavs', train_records)
-    voices = load_voices_files(train_voices_files, sample_rate, resample_rate)
-    train_data = list(zip(voices, corpus))
+    # train_voices_files, corpus = get_voice_files_and_corpus('dataset/train/wavs', train_records)
+    # voices = load_voices_files(train_voices_files, sample_rate, resample_rate)
+    # train_data = list(zip(voices, corpus))
 
     dev_files, dev_corpus = get_voice_files_and_corpus('dataset/dev', 2)
     dev_data = list(zip(load_voices_files(dev_files, sample_rate, resample_rate), dev_corpus))
@@ -97,13 +99,23 @@ def train(args: Dict):
     hist_valid_scores = []
     train_time = begin_time = time.time()
     print('begin Maximum Likelihood training')
-    batch_queue = Queue(maxsize=2)
-    batch_iter_to_queue_process = Process(target=batch_iter_to_queue, args=(train_data, batch_queue, max_epoch, train_batch_size, True))
+    data_queue = Queue(maxsize=1)
+    batch_queue = Queue(maxsize=1)
+
+    train_records = 8
+    epoch_size = 4
+    max_epoch = 2
+    train_batch_size = 2
+    train_data_to_queue_process = Process(target=load_train_data, args=('dataset/train/wavs', train_records, epoch_size, data_queue))
+    train_data_to_queue_process.start()
+
+    batch_iter_to_queue_process = Process(target=batch_iter_to_queue2, args=(data_queue, batch_queue, max_epoch, train_batch_size, True))
     batch_iter_to_queue_process.start()
-    epoch, voices, tgt_sents = batch_queue.get()
+    epoch, voices, tgt_sents = batch_queue.get(True)
 
 
     while voices is not None and tgt_sents is not None:
+        print("batch data recieved, start training iter: %d" % train_iter)
         train_iter += 1
 
         optimizer.zero_grad()
@@ -203,7 +215,7 @@ def train(args: Dict):
                     # reset patience
                     patience = 0
             
-        epoch, voices, tgt_sents = batch_queue.get()
+        epoch, voices, tgt_sents = batch_queue.get(True)
     batch_iter_to_queue_process.join()
     
 
