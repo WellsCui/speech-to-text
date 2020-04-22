@@ -10,6 +10,8 @@ Sahil Chopra <schopra8@stanford.edu>
 
 import os
 import math
+
+import time
 from typing import List
 from typing import List, Tuple, Dict, Set, Union
 import numpy as np
@@ -165,26 +167,38 @@ def load_train_data(voice_path: str, data_size: int, epoch_size: int, data_queue
     print("loading train data ...")
     sample_rate = 22000
     resample_rate = 8000
+    decade_rate = 0.3
     corpus_map = read_corpus_from_LJSpeech(
         voice_path + '/metadata.csv', 'tgt', data_size)
     voices = []
     corpus = []
     data_count = 0
     epoch_count = 0
+
+    remaining_records = int((1 - decade_rate) * epoch_size // 1)
+    print("remaining train data length:", remaining_records)
     for voice_file, sent in corpus_map:
+        while not data_queue.empty():
+            time.sleep(3)
         voice_file = voice_path+'/'+voice_file+'.wav'
         samples, sample_rate = librosa.load(voice_file, sr=sample_rate)
         voices.append(librosa.resample(samples, sample_rate, resample_rate))
         corpus.append(sent)
-        epoch_count += 1
-        data_count += 1
+        epoch_count = epoch_count + 1
+        data_count = data_count + 1
         if epoch_count == epoch_size:
-            print("push new epoch data ...")
-            data_queue.put(list(zip(voices, corpus)), True)
+            print("push new train data ...")
+            train_data = list(zip(voices, corpus))
+            data_queue.put(train_data, True)
+            index_array = list(range(epoch_size))
             voices = []
             corpus = []
-            epoch_count = 0
-        if data_count == data_size:
+            epoch_count = remaining_records
+            for idx in index_array[:remaining_records]:
+                voices.append(train_data[idx][0])
+                corpus.append(train_data[idx][1])
+
+        if data_count >= data_size:
             if len(voices) > 0:
                 data_queue.put(list(zip(voices, corpus)), True)
             print("all train data has been loaded")
@@ -260,7 +274,7 @@ def batch_iter_to_queue(data, batch_queue, epoch_num, batch_size, shuffle=False)
     batch_queue.put((None, None, None))
 
 
-def batch_iter_to_queue2(data_queue, batch_queue, epoch_num, batch_size, shuffle=False):
+def batch_iter_to_queue2(data_queue, batch_queue, loss_queue, epoch_num, batch_size, shuffle=False):
     """ Yield batches of source and target sentences reverse sorted by length (largest to smallest).
     @param data (list of (src_sent, tgt_sent)): list of tuples containing source and target sentence
     @param batch_size (int): batch size
@@ -269,8 +283,11 @@ def batch_iter_to_queue2(data_queue, batch_queue, epoch_num, batch_size, shuffle
     print("geting train data ...")
     data = data_queue.get(True)
 
+    train_index = 0
     while data is not None:
-        print("start training with new data(size = %s): ..." % len(data))
+        train_index += 1
+        print("start new training %d: data(size = %s) in %d epoches : ..." %
+              (train_index, len(data), epoch_num))
         for epoch in range(epoch_num):
             # print("epoch:", epoch, "started")
             batch_num = math.ceil(len(data) / batch_size)
@@ -278,6 +295,7 @@ def batch_iter_to_queue2(data_queue, batch_queue, epoch_num, batch_size, shuffle
 
             if shuffle:
                 np.random.shuffle(index_array)
+            loss_sum = 0.0
 
             for i in range(batch_num):
                 indices = index_array[i * batch_size: (i + 1) * batch_size]
@@ -291,6 +309,10 @@ def batch_iter_to_queue2(data_queue, batch_queue, epoch_num, batch_size, shuffle
                 tgt_sents = [e[1] for e in examples]
                 # print("push batch data ...")
                 batch_queue.put((epoch, voices, tgt_sents), True)
+                loss_sum = loss_sum + loss_queue.get()
+            if loss_sum/batch_num < 0.5:
+                break
+
         print("geting train data ...")
         data = data_queue.get(True)
         if data is not None:
@@ -424,7 +446,8 @@ def split_voice_with_pad(voice: List[float], chunk_size=1024, pad_value=0.0) -> 
     for i in range(len(voice)):
         if current_chunk['len'] > 1000 and isGap(current_chunk, i):
             current_chunk['end'] = i
-            current_chunk['data'] = voice[current_chunk['start']:current_chunk['end']]
+            current_chunk['data'] = voice[current_chunk['start']
+                :current_chunk['end']]
             chunks.append(withPads(current_chunk))
             current_chunk = {
                 'start': i,

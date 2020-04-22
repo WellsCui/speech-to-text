@@ -73,7 +73,8 @@ def train(args: Dict):
     dev_files, dev_corpus = get_voice_files_and_corpus('dataset/dev', 2)
     dev_data = list(zip(load_voices_files(dev_files, sample_rate, resample_rate), dev_corpus))
 
-    train_batch_size = 16
+    epoch_size = 4
+    train_batch_size = 2
 
     clip_grad = 5.0
     valid_niter = 100
@@ -99,25 +100,21 @@ def train(args: Dict):
     hist_valid_scores = []
     train_time = begin_time = time.time()
     print('begin Maximum Likelihood training')
-    data_queue = Queue(maxsize=1)
-    batch_queue = Queue(maxsize=1)
+    data_queue = Queue()
+    batch_queue = Queue(1)
+    loss_queue = Queue(2)
 
-    train_records = 8
-    epoch_size = 4
-    max_epoch = 2
-    train_batch_size = 2
-    train_data_to_queue_process = Process(target=load_train_data, args=('dataset/train/wavs', train_records, epoch_size, data_queue))
+    train_data_to_queue_process = Process(target=load_train_data, args=('dataset/train', train_records, epoch_size, data_queue))
     train_data_to_queue_process.start()
 
-    batch_iter_to_queue_process = Process(target=batch_iter_to_queue2, args=(data_queue, batch_queue, max_epoch, train_batch_size, True))
+    batch_iter_to_queue_process = Process(target=batch_iter_to_queue2, args=(data_queue, batch_queue, loss_queue, max_epoch, train_batch_size, True))
     batch_iter_to_queue_process.start()
     epoch, voices, tgt_sents = batch_queue.get(True)
-
+    current_epoch = -1
 
     while voices is not None and tgt_sents is not None:
-        print("batch data recieved, start training iter: %d" % train_iter)
-        train_iter += 1
 
+        train_iter += 1
         optimizer.zero_grad()
         
         # voices = load_voices_files(voice_files, sample_rate, resample_rate)
@@ -144,6 +141,7 @@ def train(args: Dict):
         cum_tgt_words += tgt_words_num_to_predict
         report_examples += batch_size
         cum_examples += batch_size
+        loss_queue.put(report_loss / report_examples)
 
         if train_iter % log_every == 0:
             print('epoch %d, iter %d, avg. loss %.2f, avg. ppl %.2f ' \
@@ -215,8 +213,9 @@ def train(args: Dict):
                     # reset patience
                     patience = 0
             
-        epoch, voices, tgt_sents = batch_queue.get(True)
+        epoch, voices, tgt_sents = batch_queue.get()
     batch_iter_to_queue_process.join()
+    train_data_to_queue_process.join()
     
 
 def evaluate_ppl(model, dev_data, batch_size=32):
