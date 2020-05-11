@@ -53,8 +53,8 @@ voice_to_text.ipynb
 
 ### Training Reports
 
-#### Overfit report
-![Overfit report](docs/design/train-report-of-overfit.png)
+| Loss of overfit training with 16 records        | Loss of training with 500 records           |
+| ------------- | -------------|
+| <img src="docs/design/train-report-of-overfit.png" width="200">| <img src="docs/design/train-report-of-500-records.png" width="200">|
 
-#### report with 500 records
-![report with 500 records](docs/design/train-report-of-500-records.png)
+
