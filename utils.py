@@ -10,7 +10,7 @@ Sahil Chopra <schopra8@stanford.edu>
 
 import os
 import math
-
+import os.path
 import time
 from typing import List
 from typing import List, Tuple, Dict, Set, Union
@@ -163,12 +163,11 @@ def get_voice_files_and_corpus(voice_path: str, voice_num=-1) -> Tuple[List[str]
     return voice_files, corpus
 
 
-def load_train_data(voice_path: str, data_size: int, epoch_size: int, data_queue: Queue):
+def load_train_data(voice_path: str, data_size: int, epoch_size: int, data_queue: Queue, repeat=1, decade_rate=0.5):
     print("loading train data ...")
     sample_rate = 22000
     resample_rate = 8000
-    decade_rate = 0.3
-    corpus_map = read_corpus_from_LJSpeech(
+    data = read_corpus_from_LJSpeech(
         voice_path + '/metadata.csv', 'tgt', data_size)
     voices = []
     corpus = []
@@ -177,33 +176,44 @@ def load_train_data(voice_path: str, data_size: int, epoch_size: int, data_queue
 
     remaining_records = int((1 - decade_rate) * epoch_size // 1)
     print("remaining train data length:", remaining_records)
-    for voice_file, sent in corpus_map:
-        while not data_queue.empty():
-            time.sleep(3)
-        voice_file = voice_path+'/'+voice_file+'.wav'
-        samples, sample_rate = librosa.load(voice_file, sr=sample_rate)
-        voices.append(librosa.resample(samples, sample_rate, resample_rate))
-        corpus.append(sent)
-        epoch_count = epoch_count + 1
-        data_count = data_count + 1
-        if epoch_count == epoch_size:
-            print("push new train data ...")
-            train_data = list(zip(voices, corpus))
-            data_queue.put(train_data, True)
-            index_array = list(range(epoch_size))
-            voices = []
-            corpus = []
-            epoch_count = remaining_records
-            for idx in index_array[:remaining_records]:
-                voices.append(train_data[idx][0])
-                corpus.append(train_data[idx][1])
+    corpus_map = []
 
-        if data_count >= data_size:
-            if len(voices) > 0:
-                data_queue.put(list(zip(voices, corpus)), True)
-            print("all train data has been loaded")
-            data_queue.put(None, True)
-            return
+    for voice_file, sent in data:
+        corpus_map.append((voice_file, sent))
+    corpus_index_array = list(range(len(corpus_map)))
+    for rd in range(repeat):
+        print("pushing new round train data:", rd)
+
+        np.random.shuffle(corpus_index_array)
+        for idx in corpus_index_array:
+            voice_file, sent = corpus_map[idx]
+            while not data_queue.empty():
+                time.sleep(3)
+            voice_file = voice_path+'/'+voice_file+'.wav'
+            if not os.path.isfile(voice_file):
+                continue
+            samples, sample_rate = librosa.load(voice_file, sr=sample_rate)
+            voices.append(librosa.resample(
+                samples, sample_rate, resample_rate))
+            corpus.append(sent)
+            epoch_count = epoch_count + 1
+            data_count = data_count + 1
+            if epoch_count == epoch_size:
+                print("push new train data ...")
+                train_data = list(zip(voices, corpus))
+                data_queue.put(train_data, True)
+                index_array = list(range(epoch_size))
+                voices = []
+                corpus = []
+                epoch_count = remaining_records
+                for idx in index_array[:remaining_records]:
+                    voices.append(train_data[idx][0])
+                    corpus.append(train_data[idx][1])
+
+
+    print("all train data has been loaded")
+    data_queue.put(None, True)
+    return
 
 
 def get_voice_files_and_corpus_by_indexes(voice_path: str, indexes) -> Tuple[List[str], List[List[str]]]:
@@ -216,12 +226,12 @@ def get_voice_files_and_corpus_by_indexes(voice_path: str, indexes) -> Tuple[Lis
     for voice_file, sent in corpus_map:
         if indexes[index_pos] == corpus_pos:
             index_pos += 1
-            voice_files.append(voice_path+'/'+voice_file+'.wav')
-            corpus.append(sent)
+            if not os.path.isfile(voice_file):
+                continue
+            yield (voice_path+'/'+voice_file+'.wav', sent)
             if index_pos >= index_count:
                 break
         corpus_pos += 1
-    return voice_files, corpus
 
 
 def batch_iter(data, batch_size, shuffle=False):
@@ -446,8 +456,7 @@ def split_voice_with_pad(voice: List[float], chunk_size=1024, pad_value=0.0) -> 
     for i in range(len(voice)):
         if current_chunk['len'] > 1000 and isGap(current_chunk, i):
             current_chunk['end'] = i
-            current_chunk['data'] = voice[current_chunk['start']
-                :current_chunk['end']]
+            current_chunk['data'] = voice[current_chunk['start']:current_chunk['end']]
             chunks.append(withPads(current_chunk))
             current_chunk = {
                 'start': i,

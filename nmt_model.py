@@ -83,7 +83,7 @@ class NMT(nn.Module):
         # Compute sentence lengths
         voicelength = 80*1024
         split_size = 1024
-        source_padded, source_lengths = split_voices_with_pad(source, split_size, 80)
+        source_padded, source_lengths = split_source_with_pad(source, split_size, 80)
         source_padded_tensor = torch.tensor(source_padded, dtype=torch.float, device=self.device)
         X = self.voiceCNN(source_padded_tensor).transpose(0, 1)
 

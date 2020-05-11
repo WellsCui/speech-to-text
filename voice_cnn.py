@@ -11,6 +11,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+from highway import Highway
 
 class VoiceCNN(nn.Module):
     """ Simple CNN Model:
@@ -26,6 +27,8 @@ class VoiceCNN(nn.Module):
         self.output_channels = output_channels
         self.kernel_size = kernel_size
         self.conv1d = nn.Conv1d(1, output_channels, kernel_size)
+        self.highway = Highway(output_channels)
+        # self.dropout = nn.Dropout(p=0.2)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         """ Take a tensor with shape (B, N, S)
@@ -41,7 +44,9 @@ class VoiceCNN(nn.Module):
         for batch_index in range(input.shape[0]):
             x_conv = self.conv1d(input[batch_index].unsqueeze(1))
             x_max, _ = torch.relu(x_conv).max(dim=-1, keepdim=False)
-            tensors.append(x_max) 
+            x_highway = self.highway(x_max)
+            # x_output = self.dropout(x_highway)
+            tensors.append(x_highway) 
         output = torch.stack(tensors) 
         return output
 
