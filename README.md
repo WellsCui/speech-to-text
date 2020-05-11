@@ -5,7 +5,7 @@ This project uses deep learning technologies to transfer voice to text. It is bu
 
 ## Voice process
 
-The sample rate voice in [LJ-Speech-Dataset](https://keithito.com/LJ-Speech-Dataset/) is 22k. First, the voice is resampled to 8000. Then the voice is splited into slices with size of 1k. The splited data is passed to 1DConv. Finally, the output of 1DConv is passed into a highway. The output of highway is passed into the Neural Machine Translation Model.
+The sample rate of voices in [LJ-Speech-Dataset](https://keithito.com/LJ-Speech-Dataset/) is 22k. First, the voice is resampled to 8000. Then the voice is splited into slices with size of 1k. The splited data is passed to 1DConv. The output of 1DConv is passed into a highway. The output of highway is used as input of the Neural Machine Translation Model.
 
 ![voice spit and 1DConv and highway](docs/design/voice-resample-split-1dconv-highway.png?raw=true "voice process")
 
@@ -57,4 +57,4 @@ voice_to_text.ipynb
 | ------------- | -------------|
 | <img src="docs/design/train-report-of-overfit.png" width="200">| <img src="docs/design/train-report-of-500-records.png" width="200">|
 
-
+As the losses chart shows above, the model is able to converge quickly with tiny dataset. But It is not able to converge on a larger dataset. Further investigation is needed.
