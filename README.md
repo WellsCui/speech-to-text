@@ -11,7 +11,7 @@ The sample rate of voices in [LJ-Speech-Dataset](https://keithito.com/LJ-Speech-
 
 ## Neural Machine Translation Model
 
-The neural machine translation model has a  Bidirectional  LSTMEncoder and a Unidirectional LSTM Decoder and Multiplicative Attention and Character-based LSTM decoder. Please refer to [cs224n-2019 assignment 4,5](https://web.stanford.edu/class/archive/cs/cs224n/cs224n.1194/)
+This neural machine translation model has a Bidirectional  LSTMEncoder and a Unidirectional LSTM Decoder and Multiplicative Attention and Character-based LSTM decoder. Please refer to [cs224n-2019 assignment 4,5](https://web.stanford.edu/class/archive/cs/cs224n/cs224n.1194/)
 
 ### Neural Machine Translation Model
 ![Neural Machine Translation Model](docs/design/nmt-model.png)
@@ -49,7 +49,8 @@ vocab.save('./dataset/vocab_full.json')
 ```
 
 ### Run Jupyter notebok voice_to_text.ipynb to train
-voice_to_text.ipynb
+
+Use https://colab.research.google.com/ to run voice_to_text.ipynb
 
 ### Training Reports
 
