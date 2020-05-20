@@ -38,7 +38,8 @@ class Highway(nn.Module):
         """
         project = torch.relu(self.projection(X))
         gate = torch.sigmoid(self.projection(X))
-        output = gate * project + (1-gate) * X
+        # output = gate * project + (1-gate) * X
+        output = gate * project + X
 
 
         return output
