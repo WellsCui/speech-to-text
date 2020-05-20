@@ -226,9 +226,8 @@ def get_voice_files_and_corpus_by_indexes(voice_path: str, indexes) -> Tuple[Lis
     for voice_file, sent in corpus_map:
         if indexes[index_pos] == corpus_pos:
             index_pos += 1
-            if not os.path.isfile(voice_file):
-                continue
-            yield (voice_path+'/'+voice_file+'.wav', sent)
+            if os.path.isfile(voice_path+'/'+voice_file+'.wav'):
+                yield (voice_path+'/'+voice_file+'.wav', sent)
             if index_pos >= index_count:
                 break
         corpus_pos += 1
