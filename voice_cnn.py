@@ -26,9 +26,7 @@ class VoiceCNN(nn.Module):
         super(VoiceCNN, self).__init__()
         self.output_channels = output_channels
         self.kernel_size = kernel_size
-        self.conv1d1 = nn.Conv1d(1, output_channels//4, kernel_size)
-        self.conv1d2 = nn.Conv1d(output_channels//4, output_channels//2, kernel_size)
-        self.conv1d3 = nn.Conv1d(output_channels//2, output_channels, kernel_size)
+        self.conv1d = nn.Conv1d(1, output_channels, kernel_size)
         self.highway = Highway(output_channels)
         # self.dropout = nn.Dropout(p=0.2)
 
@@ -44,10 +42,8 @@ class VoiceCNN(nn.Module):
         """
         tensors = []
         for batch_index in range(input.shape[0]):
-            x_conv1 = self.conv1d1(input[batch_index].unsqueeze(1))
-            x_conv2 = self.conv1d2(x_conv1)
-            x_conv3 = self.conv1d3(x_conv2)
-            x_max, _ = torch.relu(x_conv3).max(dim=-1, keepdim=False)
+            x_conv = self.conv1d(input[batch_index].unsqueeze(1))
+            x_max, _ = torch.relu(x_conv).max(dim=-1, keepdim=False)
             x_highway = self.highway(x_max)
             # x_output = self.dropout(x_highway)
             tensors.append(x_highway) 
