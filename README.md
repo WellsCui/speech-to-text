@@ -54,8 +54,8 @@ Use https://colab.research.google.com/ to run voice_to_text.ipynb
 
 ### Training Reports
 
-| Loss of overfit training with 16 records        | Loss of training with 500 records           |
+| Loss of overfit training with 16 records        | Loss of training with 1000 records           |
 | ------------- | -------------|
-| <img src="docs/design/train-report-of-overfit.png" width="200">| <img src="docs/design/train-report-of-500-records.png" width="200">|
+| <img src="docs/design/train-report-of-overfit.png" width="200">| <img src="docs/design/train-report-of-1000-records.png" width="200">|
 
-As the losses chart shows above, the model is able to converge quickly with tiny dataset. But It is not able to converge on a larger dataset. Further investigation is needed.
+As the losses chart shows above, the model is able to converge quickly with tiny dataset.
