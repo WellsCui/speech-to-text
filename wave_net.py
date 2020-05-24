@@ -8,7 +8,8 @@ import numpy as np
 from causal_conv1d import CausalConv1d
 from wave_net_layer import WaveNetLayer
 from wave_net_utils import fill_voices_data_with_pads
-from typing import List, Tuple, Dict, Set, Union
+from typing import List, Tuple, Dict, Set, Union, Optional
+
 class WaveNet(nn.Module):
     """ Simple CNN Model:
         - 1D CNN
@@ -34,7 +35,6 @@ class WaveNet(nn.Module):
         self.agregate1x1 = nn.Conv1d(
             self.layer_channels, self.agregate_size, 1)
         self.output1x1 = nn.Conv1d(self.agregate_size, self.output_size, 1)
-
         for layer_index in range(self.layer_nums):
             # print("building layer:", layer_index)
             dilation = 2 ** (layer_index % 10)
@@ -44,6 +44,7 @@ class WaveNet(nn.Module):
             else:
                 self.layers.append(WaveNetLayer(
                     self.layer_channels, self.layer_channels, self.kernel_size, dilation, context_size=self.context_size))
+            
 
     def forward(self, input: List[List[int]], context: torch.Tensor) -> (torch.Tensor, List[int]):
         """ Take a tensor with shape (B, N)
@@ -98,3 +99,14 @@ class WaveNet(nn.Module):
             voice = (np.argmax(voice, axis=0)-128) * 256
             voices.append(voice)
         return voices
+
+
+    def to(self, device: Optional[Union[int, torch.device]] = ..., dtype: Optional[Union[torch.dtype, str]] = ...,
+           non_blocking: bool = ...):
+           self.device = device
+           self.agregate1x1.to(self.device)
+           self.output1x1.to(self.device)
+           for layer_index in range(self.layer_nums):
+                self.layers[layer_index].to(self.device)
+           return self
+
