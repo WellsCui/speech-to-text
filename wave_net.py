@@ -5,7 +5,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-from highway import Highway
 from causal_conv1d import CausalConv1d
 from wave_net_layer import WaveNetLayer
 from wave_net_utils import fill_voices_data_with_pads
@@ -73,10 +72,27 @@ class WaveNet(nn.Module):
         aggregate = self.agregate1x1(F.relu(layer_output_aggregate))
         output = self.output1x1(F.relu(aggregate))
         output = F.log_softmax(output, 1)
-        return output
+        return self.masks(output, lengths)
 
     @property
     def device(self) -> torch.device:
         """ Determine which device to place the Tensors upon, CPU or GPU.
         """
         return self.agregate1x1.weight.device
+
+    
+    def masks(self, output: torch.Tensor, source_lengths: List[int]) -> torch.Tensor:
+        """ return masked oupt.
+
+        @param output (Tensor): encodings of shape (B, H, N), where B = batch size,
+                                     N = max source length, H = output_size.
+        @param source_lengths (List[int]): List of actual lengths for each of the voice in the batch.
+
+        @returns masked_output (Tensor): Tensor of sentence masks of shape (B, H, N),
+                                    where B = batch size, N = max source length, H = output_size.
+        """
+        masks = torch.zeros(output.size(0), output.size(1), output.size(2), dtype=torch.float)
+        for e_id, src_len in enumerate(source_lengths):
+            masks[e_id, :, :src_len] = 1
+        masks = masks.to(self.device)
+        return output*masks
