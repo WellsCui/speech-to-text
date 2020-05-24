@@ -45,7 +45,7 @@ class WaveNet(nn.Module):
                 self.layers.append(WaveNetLayer(
                     self.layer_channels, self.layer_channels, self.kernel_size, dilation, context_size=self.context_size))
 
-    def forward(self, input: List[List[int]], context: torch.Tensor) -> torch.Tensor:
+    def forward(self, input: List[List[int]], context: torch.Tensor) -> (torch.Tensor, List[int]):
         """ Take a tensor with shape (B, N)
 
         @param input (torch.Tensor): a tensor with shape (B, N)
@@ -72,13 +72,7 @@ class WaveNet(nn.Module):
         aggregate = self.agregate1x1(F.relu(layer_output_aggregate))
         output = self.output1x1(F.relu(aggregate))
         output = F.log_softmax(output, 1)
-        return self.masks(output, lengths)
-
-    @property
-    def device(self) -> torch.device:
-        """ Determine which device to place the Tensors upon, CPU or GPU.
-        """
-        return self.agregate1x1.weight.device
+        return self.masks(output, lengths), lengths
 
     
     def masks(self, output: torch.Tensor, source_lengths: List[int]) -> torch.Tensor:
@@ -96,3 +90,11 @@ class WaveNet(nn.Module):
             masks[e_id, :, :src_len] = 1
         masks = masks.to(self.device)
         return output*masks
+
+    def reconstruct(self, source: torch.Tensor, source_lengths: List[int]) -> List[List[int]]:
+        voices = []
+        for e_id, src_len in enumerate(source_lengths):
+            voice = source[e_id, :, :src_len].cpu().detach().numpy()
+            voice = (np.argmax(voice, axis=0)-128) * 256
+            voices.append(voice)
+        return voices

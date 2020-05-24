@@ -41,7 +41,7 @@ def get_voices_labels(voices: List[List[int]], label_count=256):
     x = np.array(voices_with_pads)/(65536/2)
     x = np.sign(x)*np.log(1+label_count*np.abs(x))/np.log(1+label_count)
     step = 2 / label_count
-    x = x // step + 128 
+    x = x // step + label_count // 2
     return x.astype(int)
 
 
