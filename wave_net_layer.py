@@ -29,9 +29,9 @@ class WaveNetLayer(nn.Module):
                 context_size, out_channels)
             self.context_gate_projection = nn.Linear(
                 context_size, out_channels)
-
-
-    def forward(self, X, Y: torch.Tensor) -> torch.Tensor:
+        
+    
+    def forward(self, X: torch.Tensor, context: torch.Tensor, padding=True) -> torch.Tensor:
         """ Take a tensor with shape (B, C, N)
 
         @param X (torch.Tensor): a tensor with shape (B, C, N)
@@ -43,17 +43,17 @@ class WaveNetLayer(nn.Module):
 
         @returns output (torch.Tensor): a variable/tensor of shape (B, N, output_channels)
         """
-
-        filtered = torch.tanh(self.filterConv1d(X))
-        gated = torch.sigmoid(self.gateConv1d(X))
+        filtered = torch.tanh(self.filterConv1d(X, padding))
+        gated = torch.sigmoid(self.gateConv1d(X, padding))
+        
         if self.context_size > 0:
             filtered_with_context = filtered + \
-                self.context_filter_projection(Y).transpose(1, 2)
+                self.context_filter_projection(context).transpose(1, 2)
             gated_with_context = gated + \
-                self.context_gate_projection(Y).transpose(1, 2)
+                self.context_gate_projection(context).transpose(1, 2)
             output = filtered_with_context * gated_with_context
         else:
             output = filtered * gated
         output = self.adjustConv1d(output)
-
         return output
+    

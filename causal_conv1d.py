@@ -1,5 +1,6 @@
 import torch.nn as nn
 import torch.nn.functional as F
+import torch
 
 
 class CausalConv1d(nn.Conv1d):
@@ -23,7 +24,10 @@ class CausalConv1d(nn.Conv1d):
 
         self.left_padding = dilation * (kernel_size - 1)
 
-    def forward(self, input):
-        x = F.pad(input.unsqueeze(2), (self.left_padding, 0, 0, 0)).squeeze(2)
-
-        return super(CausalConv1d, self).forward(x)
+    def forward(self, input: torch.Tensor, padding=True):
+        if padding:
+            x = F.pad(input.unsqueeze(2),
+                      (self.left_padding, 0, 0, 0)).squeeze(2)
+            return super(CausalConv1d, self).forward(x)
+        else:
+            return super(CausalConv1d, self).forward(input)

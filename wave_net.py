@@ -60,21 +60,24 @@ class WaveNet(nn.Module):
         padded_input, lengths = fill_voices_data_with_pads(input)
         input_tensor = torch.tensor(padded_input, dtype=torch.float, device=self.device)/(65536/2)
         layer_input = input_tensor.unsqueeze(1)
+        layer_output = self.layers_forward(layer_input, context)
+        return self.masks(layer_output, lengths), lengths
+
+
+    def layers_forward(self, layer_input: torch.Tensor, context: torch.Tensor, padding=True) -> torch.Tensor:
         layer_output_aggregate = None
         for layer_index in range(self.layer_nums):
-            # print("running layer:", layer_index)
             if layer_index == 0:
-                layer_output = self.layers[layer_index](layer_input)
+                layer_output = self.layers[layer_index](layer_input, padding)
                 layer_output_aggregate = layer_output
             else:
-                layer_output = self.layers[layer_index](layer_input, context)
+                layer_output = self.layers[layer_index](layer_input, context, padding)
                 layer_output_aggregate = layer_output_aggregate + layer_output
             layer_input = layer_input + layer_output
         aggregate = self.agregate1x1(F.relu(layer_output_aggregate))
         output = self.output1x1(F.relu(aggregate))
-        output = F.log_softmax(output, 1)
-        return self.masks(output, lengths), lengths
-
+        return F.log_softmax(output, 1)
+        
     
     def masks(self, output: torch.Tensor, source_lengths: List[int]) -> torch.Tensor:
         """ return masked oupt.
@@ -99,6 +102,19 @@ class WaveNet(nn.Module):
             voice = (np.argmax(voice, axis=0)-128) * 256
             voices.append(voice)
         return voices
+
+    def generate_voice(self, init_source: List[List[int]], context: torch.Tensor, generate_len: int) -> List[List[int]]:
+        input_tensor = torch.tensor(init_source, dtype=torch.float, device=self.device)/(65536/2)
+        layer_input = input_tensor.unsqueeze(1)
+        layer_output = self.layers_forward(layer_input, context)
+        for layer_index in range(self.layer_nums):
+            if layer_index == 0:
+                layer_output = self.layers[layer_index](layer_input)
+                layer_output_aggregate = layer_output
+            else:
+                layer_output = self.layers[layer_index](layer_input, context)
+                layer_output_aggregate = layer_output_aggregate + layer_output
+            layer_input = layer_input + layer_output
 
 
     def to(self, device: Optional[Union[int, torch.device]] = ..., dtype: Optional[Union[torch.dtype, str]] = ...,
