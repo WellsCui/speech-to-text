@@ -16,10 +16,11 @@ import torch.nn.utils
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_packed_sequence, pack_padded_sequence
 
+import numpy as np
 from voice_cnn import VoiceCNN
 from model_embeddings import ModelEmbeddings
 from char_decoder import CharDecoder
-from utils import split_source_with_pad, split_voices_with_pad
+from utils import split_source_with_pad, split_voices_with_pad, pad_source
 
 Hypothesis = namedtuple('Hypothesis', ['value', 'score'])
 
@@ -69,7 +70,7 @@ class NMT(nn.Module):
         else:
            self.charDecoder = None
 
-    def forward(self, source: List[List[float]], target: List[List[str]]) -> torch.Tensor:
+    def forward(self, source: List[np.array], target: List[List[str]]) -> torch.Tensor:
         """ Take a mini-batch of source and target sentences, compute the log-likelihood of
         target sentences under the language models learned by the NMT system.
 
@@ -81,11 +82,12 @@ class NMT(nn.Module):
                                     each example in the input batch. Here b = batch size.
         """
         # Compute sentence lengths
-        voicelength = 80*1024
         split_size = 1024
-        source_padded, source_lengths = split_source_with_pad(source, split_size, 80)
-        source_padded_tensor = torch.tensor(source_padded, dtype=torch.float, device=self.device)
-        X = self.voiceCNN(source_padded_tensor).transpose(0, 1)
+        padded_source, source_lengths = pad_source(source)
+
+        source_padded_tensor = torch.tensor(padded_source, dtype=torch.float, device=self.device)
+        # X = self.voiceCNN(source_padded_tensor).transpose(0, 1)
+        X = source_padded_tensor.permute(2, 0, 1)
 
         # source_padded_chars = self.model_embeddings_source.vocab.to_input_tensor_char(source, device=self.device)   
         target_padded_chars = self.model_embeddings_target.vocab.to_input_tensor_char(target, device=self.device) 
@@ -140,9 +142,9 @@ class NMT(nn.Module):
         ### COPY OVER YOUR CODE FROM ASSIGNMENT 4
         ### Except replace "self.model_embeddings.source" with "self.model_embeddings_source"
         # X = self.model_embeddings_source(source_padded)
-        X = source_padded
+        X = pack_padded_sequence(source_padded, source_lengths, enforce_sorted=False)
 
-        enc_hiddens, (last_hidden, last_cell) = self.encoder(pack_padded_sequence(X, source_lengths, enforce_sorted=False))
+        enc_hiddens, (last_hidden, last_cell) = self.encoder(X)
         enc_hiddens, _ = pad_packed_sequence(enc_hiddens)
         enc_hiddens = enc_hiddens.transpose(0, 1)
         combined_last_hidden = torch.cat((last_hidden[1,:,:], last_hidden[0,:,:]), 1)

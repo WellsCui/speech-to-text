@@ -117,7 +117,7 @@ def read_corpus(file_path, source):
     return data
 
 
-def read_corpus_from_LJSpeech(file_path, source, line_num=-1):
+def read_corpus_from_LJSpeech(textfile, source, line_num=-1):
     """ Read file, where each sentence is dilineated by a `\n`.
     @param file_path (str): path to file containing corpus
         each line is begin with 11 charactors wav file name:  'LJ001-0004|'
@@ -127,7 +127,7 @@ def read_corpus_from_LJSpeech(file_path, source, line_num=-1):
     """
     data = []
     line_count = 0
-    for line in open(file_path):
+    for line in open(textfile):
         sent_info = line.split('|')
         voice_name = sent_info[0]
         sent = re.sub('[,";:\?\(\)]', '', sent_info[-1])\
@@ -152,9 +152,9 @@ def read_corpus_from_LJSpeech(file_path, source, line_num=-1):
             break
 
 
-def get_voice_files_and_corpus(voice_path: str, voice_num=-1) -> Tuple[List[str], List[List[str]]]:
+def get_voice_files_and_corpus(textfile, voice_path: str, voice_num=-1) -> Tuple[List[str], List[List[str]]]:
     corpus_map = read_corpus_from_LJSpeech(
-        voice_path + '/metadata.csv', 'tgt', voice_num)
+        textfile, 'tgt', voice_num)
     voice_files = []
     corpus = []
     for voice_file, sent in corpus_map:
@@ -163,12 +163,12 @@ def get_voice_files_and_corpus(voice_path: str, voice_num=-1) -> Tuple[List[str]
     return voice_files, corpus
 
 
-def load_train_data(voice_path: str, data_size: int, epoch_size: int, data_queue: Queue, repeat=1, decade_rate=0.5):
+def load_train_data(train_file: str, voice_path: str, data_size: int, epoch_size: int,
+                    data_queue: Queue, voice_loader, repeat=1, decade_rate=0.5,):
     print("loading train data ...")
     sample_rate = 22000
     resample_rate = 8000
-    data = read_corpus_from_LJSpeech(
-        voice_path + '/metadata.csv', 'tgt', data_size)
+    data = read_corpus_from_LJSpeech(train_file, 'tgt', data_size)
     voices = []
     corpus = []
     data_count = 0
@@ -191,10 +191,13 @@ def load_train_data(voice_path: str, data_size: int, epoch_size: int, data_queue
                 time.sleep(3)
             voice_file = voice_path+'/'+voice_file+'.wav'
             if not os.path.isfile(voice_file):
+                print("warning: voice file not exists: ", voice_file)
                 continue
-            samples, sample_rate = librosa.load(voice_file, sr=sample_rate)
-            voices.append(librosa.resample(
-                samples, sample_rate, resample_rate))
+            # samples, sample_rate = librosa.load(voice_file, sr=sample_rate)
+            # voices.append(librosa.resample(
+            #     samples, sample_rate, resample_rate))
+            voice = voice_loader(voice_file)
+            voices.append(voice)
             corpus.append(sent)
             epoch_count = epoch_count + 1
             data_count = data_count + 1
@@ -209,7 +212,6 @@ def load_train_data(voice_path: str, data_size: int, epoch_size: int, data_queue
                 for idx in index_array[:remaining_records]:
                     voices.append(train_data[idx][0])
                     corpus.append(train_data[idx][1])
-
 
     print("all train data has been loaded")
     data_queue.put(None, True)
@@ -370,6 +372,18 @@ def load_voices_files(voice_files, sample_rate, resample_rate=8000, voice_num=-1
     return voices
 
 
+def pad_source(source: List[np.ndarray], pad_value=0.0):
+    lengths = []
+    for item in source:
+        lengths.append(item.shape[1])
+    max_len = np.amax(lengths)
+    padded_source = []
+    for i, item in enumerate(source):
+        padded_source.append(
+            np.pad(item, ((0, 0), (0, max_len-lengths[i])), constant_values=pad_value))
+    return np.stack(padded_source), lengths
+
+
 def split_source_with_pad(source: List[List[float]], chunk_size=2048, max_chunk=40, pad_value=0.0) -> (np.ndarray, List[int]):
     """ split source with pad.
 
@@ -455,7 +469,7 @@ def split_voice_with_pad(voice: List[float], chunk_size=1024, pad_value=0.0) -> 
     for i in range(len(voice)):
         if current_chunk['len'] > 1000 and isGap(current_chunk, i):
             current_chunk['end'] = i
-            current_chunk['data'] = voice[current_chunk['start']:current_chunk['end']]
+            current_chunk['data'] = voice[current_chunk['start']                                          :current_chunk['end']]
             chunks.append(withPads(current_chunk))
             current_chunk = {
                 'start': i,

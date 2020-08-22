@@ -1,0 +1,27 @@
+{
+    "train_config": {
+        "device": "cuda:0",
+        "epoch_size": 32,
+        "max_epoch": 30,
+        "batch_size": 16,
+        "repeats": 1,
+        "decade_rate": 1,
+        "output_path": "./drive/My Drive/ai/checkpoints",
+        "clip_grad": 5.0,
+        "log_every": 10,
+        "valid_every": 1000
+    },
+    "data_config": {
+        "waves_path": "./drive/My Drive/ai/datasets/LJSpeech-1.1/wavs",
+        "train_file": "data/train.csv",
+        "dev_file": "data/dev.csv",
+        "vacab_file": "data/vocab_full.json",
+        "sampling_rate": 22050,
+        "n_mels": 256,
+        "mel_fmax": 8000.0
+    },
+    "model_config": {
+        "embed_size": 256,
+        "hidden_size": 2048
+    }
+}
