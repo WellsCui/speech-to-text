@@ -94,10 +94,10 @@ def beam_search(model: NMT, test_data_src: List[List[float]], beam_size: int, ma
 def train(model_config, data_config, output_path, device,
           epoch_size, max_epoch, batch_size, repeats, 
           decade_rate, clip_grad, log_every, valid_every):
+    print('use device: %s' % device, file=sys.stderr)
     vocab = Vocab.load(data_config["vacab_file"])
     model = NMT(vocab=vocab, **model_config)
-    print('use device: %s' % device, file=sys.stderr)
-    
+    model = model.to(torch.device(device))
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
     if os.path.isfile(output_path+ '/speech-to-text.model'):
@@ -106,11 +106,8 @@ def train(model_config, data_config, output_path, device,
         model.load_state_dict(params['state_dict'])
         print('restoring parameters of the optimizers', file=sys.stderr)
         optimizer.load_state_dict(torch.load(output_path+ '/speech-to-text.optim'))
-
-    model = model.to(torch.device(device))
     model.train()
 
-    
     data_config.pop("vacab_file", None)
     data_loader = DataLoader(**data_config)
     batch_queue, loss_queue = data_loader.load_train_data(
@@ -214,7 +211,8 @@ if __name__ == "__main__":
     with open(args.config) as f:
         data = f.read()
     config = json.loads(data)
-    print("start training with config:\n", config)
+    # print("start training with config:", )
+    # print(json.dumps(config, indent=4, sort_keys=True))
 
     train(config["model_config"], config["data_config"],
           **config["train_config"])
