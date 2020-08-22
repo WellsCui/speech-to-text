@@ -94,10 +94,11 @@ def beam_search(model: NMT, test_data_src: List[List[float]], beam_size: int, ma
 def train(model_config, data_config, output_path, device,
           epoch_size, max_epoch, batch_size, repeats, 
           decade_rate, clip_grad, log_every, valid_every):
-    print("vacab_file:\n", data_config["vacab_file"])
     vocab = Vocab.load(data_config["vacab_file"])
-    # model_save_path = output_path+'/model.bin'
     model = NMT(vocab=vocab, **model_config)
+    model.train()
+    print('use device: %s' % device, file=sys.stderr)
+    model = model.to(torch.device(device))
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     data_config.pop("vacab_file", None)
     data_loader = DataLoader(**data_config)
@@ -189,9 +190,7 @@ def train(model_config, data_config, output_path, device,
 
                 # also save the optimizers' state
                 torch.save(optimizer.state_dict(), model_save_path + '.optim')
-            
 
-        print("getting batch:", len(voices))
         epoch, voices, tgt_sents = batch_queue.get(True)
 
 

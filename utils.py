@@ -291,14 +291,14 @@ def batch_iter_to_queue2(data_queue, batch_queue, loss_queue, epoch_num, batch_s
     @param batch_size (int): batch size
     @param shuffle (boolean): whether to randomly shuffle the dataset
     """
-    print("geting train data ...")
+    # print("geting train data ...")
     data = data_queue.get(True)
 
     train_index = 0
     while data is not None:
         train_index += 1
-        print("start new training %d: data(size = %s) in %d epoches : ..." %
-              (train_index, len(data), epoch_num))
+        # print("start new training %d: data(size = %s) in %d epoches : ..." %
+        #       (train_index, len(data), epoch_num))
         for epoch in range(epoch_num):
             # print("epoch:", epoch, "started")
             batch_num = math.ceil(len(data) / batch_size)
@@ -324,12 +324,12 @@ def batch_iter_to_queue2(data_queue, batch_queue, loss_queue, epoch_num, batch_s
             if loss_sum/batch_num < 0.5:
                 break
 
-        print("geting train data ...")
+        # print("geting train data ...")
         data = data_queue.get(True)
-        if data is not None:
-            print("recieved train data (size = %d) ..." % len(data))
-        else:
-            print("recieved no train data")
+        # if data is not None:
+        #     print("recieved train data (size = %d) ..." % len(data))
+        # else:
+        #     print("recieved no train data")
 
     batch_queue.put((None, None, None))
 
