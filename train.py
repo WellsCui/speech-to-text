@@ -1,4 +1,4 @@
-
+import os
 import time
 import sys
 import math
@@ -96,10 +96,21 @@ def train(model_config, data_config, output_path, device,
           decade_rate, clip_grad, log_every, valid_every):
     vocab = Vocab.load(data_config["vacab_file"])
     model = NMT(vocab=vocab, **model_config)
-    model.train()
     print('use device: %s' % device, file=sys.stderr)
-    model = model.to(torch.device(device))
+    
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+
+    if os.path.isfile(output_path+ '/speech-to-text.model'):
+        print('loading saved model...')
+        params = torch.load(output_path+ '/speech-to-text.model', map_location=lambda storage, loc: storage)
+        model.load_state_dict(params['state_dict'])
+        print('restoring parameters of the optimizers', file=sys.stderr)
+        optimizer.load_state_dict(torch.load(output_path+ '/speech-to-text.optim'))
+
+    model = model.to(torch.device(device))
+    model.train()
+
+    
     data_config.pop("vacab_file", None)
     data_loader = DataLoader(**data_config)
     batch_queue, loss_queue = data_loader.load_train_data(
@@ -185,11 +196,9 @@ def train(model_config, data_config, output_path, device,
 
             if is_better:
                 patience = 0
-                print('save currently the best model to [%s]' % model_save_path, file=sys.stderr)
-                model.save(output_path)
-
-                # also save the optimizers' state
-                torch.save(optimizer.state_dict(), model_save_path + '.optim')
+                print('save currently the best model to [%s]' % output_path, file=sys.stderr)
+                model.save(output_path+ '/speech-to-text.model')
+                torch.save(optimizer.state_dict(), output_path + '/speech-to-text.optim')
 
         epoch, voices, tgt_sents = batch_queue.get(True)
 
