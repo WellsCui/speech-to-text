@@ -1,15 +1,15 @@
 {
     "train_config": {
         "device": "cpu",
-        "epoch_size": 32,
+        "epoch_size": 2,
         "max_epoch": 30,
-        "batch_size": 16,
+        "batch_size": 2,
         "repeats": 1,
         "decade_rate": 1,
         "output_path": "./checkpoints",
         "clip_grad": 5.0,
-        "log_every": 10,
-        "valid_every": 1000
+        "log_every": 1,
+        "valid_every": 5
     },
     "data_config": {
         "waves_path": "../datasets/LJSpeech/wavs",
