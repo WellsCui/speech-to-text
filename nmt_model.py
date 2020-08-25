@@ -213,7 +213,7 @@ class NMT(nn.Module):
         Y = self.model_embeddings_target(target_padded)
         dec_state = dec_init_state
         prev_alpha_t = torch.zeros(batch_size, self.loc_window,
-                          enc_hiddens.size(1), device=self.device)
+                                   enc_hiddens.size(1), device=self.device)
         for Y_t in torch.split(Y, 1):
             Ybar_t = torch.cat((torch.squeeze(Y_t, 0), o_prev), 1)
             dec_state, o_t, e_t, prev_alpha_t = self.step(
@@ -277,10 +277,33 @@ class NMT(nn.Module):
         # COPY OVER YOUR CODE FROM ASSIGNMENT 4
 
         alpha_t = F.softmax(e_t, 1)
-        prev_alpha_t = torch.cat((prev_alpha_t[:, 1:, :], alpha_t.unsqueeze(1)), 1)
+        prev_alpha_t = torch.cat(
+            (prev_alpha_t[:, 1:, :], alpha_t.unsqueeze(1)), 1)
 
+        max_len = alpha_t.size(1)
+        alpha_t_loc = torch.argmax(alpha_t, dim=1)
+        windowed_alpha_t = []
+        windowed_enc_hiddens = []
+        for i in range(alpha_t.size(0)):
+            if alpha_t_loc[i] < 16:
+                low = 0
+                high = 32
+            elif alpha_t_loc[i] > max_len-16:
+                low = max_len-32
+                high = max_len
+            else:
+                low = alpha_t_loc[i] - 16
+                high = alpha_t_loc[i] + 16
+            windowed_alpha_t.append(alpha_t[i, low:high])
+            windowed_enc_hiddens.append(enc_hiddens[i, low:high, :])
+        windowed_alpha_t = torch.unsqueeze(torch.stack(windowed_alpha_t), 1)
+        windowed_enc_hiddens = torch.stack(windowed_enc_hiddens)
+
+
+        # a_t = torch.squeeze(
+        #     torch.bmm(torch.unsqueeze(alpha_t, 1), enc_hiddens), 1)
         a_t = torch.squeeze(
-            torch.bmm(torch.unsqueeze(alpha_t, 1), enc_hiddens), 1)
+            torch.bmm(windowed_alpha_t, windowed_enc_hiddens), 1)
         U_t = torch.cat((dec_hidden, a_t), 1)
         V_t = self.combined_output_projection(U_t)
         O_t = self.dropout(torch.tanh(V_t))
