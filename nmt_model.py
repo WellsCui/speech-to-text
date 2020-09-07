@@ -33,7 +33,7 @@ class NMT(nn.Module):
         - Global Attention Model (Luong, et al. 2015)
     """
 
-    def __init__(self, embed_size, hidden_size, vocab, dropout_rate=0.2, no_char_decoder=False):
+    def __init__(self, embed_size, hidden_size, vocab, dropout_rate=0.2, spectrum_cnn_kernel_size=3, location_attention_window=64, no_char_decoder=False):
         """ Init NMT Model.
 
         @param embed_size (int): Embedding size (dimensionality)
@@ -45,7 +45,9 @@ class NMT(nn.Module):
         super(NMT, self).__init__()
 
         # self.voiceCNN = VoiceCNN(embed_size, 5)
-        self.spectrumCNN = nn.Conv1d(embed_size, embed_size, 1)
+        self.location_attention_window = location_attention_window
+        self.spectrum_cnn_kernel_size = spectrum_cnn_kernel_size
+        self.spectrumCNN = nn.Conv1d(embed_size, embed_size, self.spectrum_cnn_kernel_size)
         # self.model_embeddings_source = ModelEmbeddings(embed_size, vocab.src)
         self.model_embeddings_target = ModelEmbeddings(embed_size, vocab.tgt)
 
@@ -100,7 +102,11 @@ class NMT(nn.Module):
         source_padded_tensor = torch.tensor(
             padded_source, dtype=torch.float, device=self.device)
         # X = self.voiceCNN(source_padded_tensor).transpose(0, 1)
+        # print("shape before spectrumCNN:", source_padded_tensor.shape)
         X = self.spectrumCNN(source_padded_tensor)
+        spectrum_CNN_lengths = torch.tensor(source_lengths, dtype=torch.int, device=self.device)
+        spectrum_CNN_lengths = spectrum_CNN_lengths - self.spectrum_cnn_kernel_size -1
+        # print("shape after spectrumCNN:", X.shape)
         X = X.permute(2, 0, 1)
 
         # source_padded_chars = self.model_embeddings_source.vocab.to_input_tensor_char(source, device=self.device)
@@ -109,8 +115,8 @@ class NMT(nn.Module):
         target_padded = self.model_embeddings_target.vocab.to_input_tensor(
             target, device=self.device)
 
-        enc_hiddens, dec_init_state = self.encode(X, source_lengths)
-        enc_masks = self.generate_sent_masks(enc_hiddens, source_lengths)
+        enc_hiddens, dec_init_state = self.encode(X, spectrum_CNN_lengths)
+        enc_masks = self.generate_sent_masks(enc_hiddens, spectrum_CNN_lengths)
         combined_outputs = self.decode(
             enc_hiddens, enc_masks, dec_init_state, target_padded_chars)
 
@@ -258,15 +264,20 @@ class NMT(nn.Module):
 
         dec_state = self.decoder(Ybar_t, dec_state)
         dec_hidden, dec_cell = dec_state
-        # print("e_t.shape:", prev_e_t.shape)
+        
         # print("enc_hiddens.shape:", enc_hiddens.shape)
         # print("dec_hidden.shape:", dec_hidden.shape)
+        # print("prev_alpha_t.shape:", prev_alpha_t.shape)
 
         prev = self.loc_att_conv1D(prev_alpha_t).transpose(1, 2)
+        # print("prev.shape:", prev.shape)
         prev = self.loc_att_projection(prev).squeeze(2)
         e_t = torch.squeeze(
             torch.bmm(enc_hiddens_proj, torch.unsqueeze(dec_hidden, 2)), 2)
+        # print("enc_hiddens_proj.shape:", enc_hiddens_proj.shape)
+        # print("e_t.shape:", e_t.shape)
         e_t = e_t + prev
+
 
         # END YOUR CODE FROM ASSIGNMENT 4
 
@@ -280,30 +291,26 @@ class NMT(nn.Module):
         prev_alpha_t = torch.cat(
             (prev_alpha_t[:, 1:, :], alpha_t.unsqueeze(1)), 1)
 
-        max_len = alpha_t.size(1)
-        alpha_t_loc = torch.argmax(alpha_t, dim=1)
-        windowed_alpha_t = []
-        windowed_enc_hiddens = []
-        for i in range(alpha_t.size(0)):
-            if alpha_t_loc[i] < 16:
-                low = 0
-                high = 32
-            elif alpha_t_loc[i] > max_len-16:
-                low = max_len-32
-                high = max_len
-            else:
-                low = alpha_t_loc[i] - 16
-                high = alpha_t_loc[i] + 16
-            windowed_alpha_t.append(alpha_t[i, low:high])
-            windowed_enc_hiddens.append(enc_hiddens[i, low:high, :])
-        windowed_alpha_t = torch.unsqueeze(torch.stack(windowed_alpha_t), 1)
-        windowed_enc_hiddens = torch.stack(windowed_enc_hiddens)
+        # max_len = alpha_t.size(1)
+        # alpha_t_loc = torch.argmax(alpha_t, dim=1)
+        # # print("alpha_t_loc.size:", alpha_t_loc.size())
+        # alpha_t_loc_low = torch.max(alpha_t_loc-int(self.location_attention_window/2), torch.zeros((alpha_t.size(0)), dtype=torch.long, device=self.device))
+        # alpha_t_loc_low = torch.min(alpha_t_loc_low, torch.full([alpha_t.size(0)], max_len-self.location_attention_window, dtype=torch.long, device=self.device))
+        # # alpha_t_window = torch.stack((alpha_t_loc_low, alpha_t_loc_high), dim=1)
+
+        # windowed_alpha_t = []
+        # windowed_enc_hiddens = []
+        # for i in range(alpha_t.size(0)):
+        #     windowed_alpha_t.append(alpha_t[i, alpha_t_loc_low[i]:alpha_t_loc_low[i]+64])
+        #     windowed_enc_hiddens.append(enc_hiddens[i, alpha_t_loc_low[i]:alpha_t_loc_low[i]+64, :])
+        # windowed_alpha_t = torch.unsqueeze(torch.stack(windowed_alpha_t), 1)
+        # windowed_enc_hiddens = torch.stack(windowed_enc_hiddens)
 
 
-        # a_t = torch.squeeze(
-        #     torch.bmm(torch.unsqueeze(alpha_t, 1), enc_hiddens), 1)
         a_t = torch.squeeze(
-            torch.bmm(windowed_alpha_t, windowed_enc_hiddens), 1)
+            torch.bmm(torch.unsqueeze(alpha_t, 1), enc_hiddens), 1)
+        # a_t = torch.squeeze(
+        #     torch.bmm(windowed_alpha_t, windowed_enc_hiddens), 1)
         U_t = torch.cat((dec_hidden, a_t), 1)
         V_t = self.combined_output_projection(U_t)
         O_t = self.dropout(torch.tanh(V_t))

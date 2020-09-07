@@ -187,8 +187,6 @@ def load_train_data(train_file: str, voice_path: str, data_size: int, epoch_size
         np.random.shuffle(corpus_index_array)
         for idx in corpus_index_array:
             voice_file, sent = corpus_map[idx]
-            while not data_queue.empty():
-                time.sleep(3)
             voice_file = voice_path+'/'+voice_file+'.wav'
             if not os.path.isfile(voice_file):
                 print("warning: voice file not exists: ", voice_file)

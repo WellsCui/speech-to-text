@@ -100,32 +100,40 @@ def train(model_config, data_config, output_path, device,
     model = model.to(torch.device(device))
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
-    if os.path.isfile(output_path+ '/speech-to-text.model'):
-        print('loading saved model...')
-        params = torch.load(output_path+ '/speech-to-text.model', map_location=lambda storage, loc: storage)
-        model.load_state_dict(params['state_dict'])
-        print('restoring parameters of the optimizers', file=sys.stderr)
-        optimizer.load_state_dict(torch.load(output_path+ '/speech-to-text.optim'))
-    model.train()
-
     data_config.pop("vacab_file", None)
     data_loader = DataLoader(**data_config)
     batch_queue, loss_queue = data_loader.load_train_data(
         epoch_size, max_epoch, batch_size, repeats, decade_rate)
     dev_data = data_loader.load_dev_data()
 
-    train_iter = patience = cum_loss = report_loss = cum_tgt_words = report_tgt_words = 0
-    cum_examples = report_examples = epoch = valid_num = 0
+
+
     hist_valid_scores = []
     train_losses = []
-    train_time = begin_time = time.time()
+    train_iter = cum_loss = report_loss = cum_tgt_words = report_tgt_words = 0
+    cum_examples = report_examples = epoch = valid_num = 0
 
+    if os.path.isfile(output_path+ '/speech-to-text.model'):
+        print('loading saved model...')
+        params = torch.load(output_path+ '/speech-to-text.model', map_location=lambda storage, loc: storage)
+        model.load_state_dict(params['state_dict'])
+        print('restoring parameters of the optimizers', file=sys.stderr)
+        optimizer.load_state_dict(torch.load(output_path+ '/speech-to-text.optim'))
+        dev_ppl = evaluate_ppl(model, dev_data, batch_size=128)   # dev batch size can be a bit larger
+        valid_metric = -dev_ppl
+        hist_valid_scores.append(valid_metric)
+        print("saved model ppl: ", dev_ppl)
+
+    model.train()
+
+    train_time = begin_time = time.time()
     epoch, voices, tgt_sents = batch_queue.get(True)
     while voices is not None and tgt_sents is not None:
         train_iter += 1
         optimizer.zero_grad()
         # print("received voices:", len(voices))
-        # print("training with batch...")
+        # print("tgt_sents[0]:", len(tgt_sents[0]), tgt_sents[0])
+        # print("tgt_sents[1]:", len(tgt_sents[1]), tgt_sents[1])
         optimizer.zero_grad()
         batch_size = len(voices)
         sample_losses = -model(voices, tgt_sents)

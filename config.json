@@ -22,6 +22,9 @@
     },
     "model_config": {
         "embed_size": 256,
-        "hidden_size": 2048
+        "hidden_size": 2048,
+        "location_attention_window": 64,
+        "spectrum_cnn_kernel_size": 3
+
     }
 }

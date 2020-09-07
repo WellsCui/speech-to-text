@@ -11,8 +11,8 @@ class DataLoader(object):
         self.sampling_rate = sampling_rate
         self.n_mels = n_mels
         self.mel_fmax = mel_fmax
-        self.data_queue = Queue(1)
-        self.batch_queue = Queue(1)
+        self.data_queue = Queue(2)
+        self.batch_queue = Queue(2)
         self.loss_queue = Queue(2)
 
     def load_train_data(self, epoch_size, max_epoch, batch_size, repeats, decade_rate) -> (Queue, Queue):

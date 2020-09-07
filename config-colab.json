@@ -9,7 +9,7 @@
         "output_path": "./drive/My Drive/ai/checkpoints",
         "clip_grad": 5.0,
         "log_every": 10,
-        "valid_every": 1000
+        "valid_every": 500
     },
     "data_config": {
         "waves_path": "./drive/My Drive/ai/datasets/LJSpeech-1.1/wavs",
@@ -22,6 +22,8 @@
     },
     "model_config": {
         "embed_size": 256,
-        "hidden_size": 2048
+        "hidden_size": 2048,
+        "location_attention_window": 64,
+        "spectrum_cnn_kernel_size": 3
     }
 }
