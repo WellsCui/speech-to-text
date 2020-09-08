@@ -9,7 +9,8 @@
         "output_path": "./checkpoints",
         "clip_grad": 5.0,
         "log_every": 1,
-        "valid_every": 5
+        "valid_every": 5,
+        "learning_rate": 0.0005
     },
     "data_config": {
         "waves_path": "../datasets/LJSpeech/wavs",

@@ -1,0 +1,8 @@
+model.bin*
+output.txt
+__pycache__
+dataset
+
+output
+.vscode
+.ipynb_checkpoints

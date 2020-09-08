@@ -93,12 +93,12 @@ def beam_search(model: NMT, test_data_src: List[List[float]], beam_size: int, ma
 
 def train(model_config, data_config, output_path, device,
           epoch_size, max_epoch, batch_size, repeats, 
-          decade_rate, clip_grad, log_every, valid_every):
+          decade_rate, clip_grad, log_every, valid_every, learning_rate=0.0005):
     print('use device: %s' % device, file=sys.stderr)
     vocab = Vocab.load(data_config["vacab_file"])
     model = NMT(vocab=vocab, **model_config)
     model = model.to(torch.device(device))
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
     data_config.pop("vacab_file", None)
     data_loader = DataLoader(**data_config)

@@ -9,7 +9,8 @@
         "output_path": "./drive/My Drive/ai/checkpoints",
         "clip_grad": 5.0,
         "log_every": 10,
-        "valid_every": 500
+        "valid_every": 500,
+        "learning_rate": 0.0005
     },
     "data_config": {
         "waves_path": "./drive/My Drive/ai/datasets/LJSpeech-1.1/wavs",
