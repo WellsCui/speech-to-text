@@ -200,9 +200,9 @@ def load_train_data(train_file: str, voice_path: str, data_size: int, epoch_size
             epoch_count = epoch_count + 1
             data_count = data_count + 1
             if epoch_count == epoch_size:
-                print("push new train data ...")
                 train_data = list(zip(voices, corpus))
                 data_queue.put(train_data, True)
+                print("pushed new train data")
                 index_array = list(range(epoch_size))
                 voices = []
                 corpus = []
@@ -316,8 +316,8 @@ def batch_iter_to_queue2(data_queue, batch_queue, loss_queue, epoch_num, batch_s
                 # voices = load_voices_files(voice_files, sample_rate, resample_rate)
                 voices = voice_files
                 tgt_sents = [e[1] for e in examples]
-                # print("push batch data ...")
                 batch_queue.put((epoch, voices, tgt_sents), True)
+
                 loss_sum = loss_sum + loss_queue.get()
             if loss_sum/batch_num < 0.5:
                 break
