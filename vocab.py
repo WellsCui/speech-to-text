@@ -24,7 +24,7 @@ from itertools import chain
 import json
 import torch
 from typing import List
-from utils import read_corpus, pad_sents, pad_sents_char
+from utils import read_corpus, pad_sents, pad_sents_char, pad_sents_char_2
 
 class VocabEntry(object):
     """ Vocabulary Entry, i.e. structure containing either
@@ -131,6 +131,23 @@ class VocabEntry(object):
 
         ### END YOUR CODE
 
+    def sents2charindices(self, sents):
+        """ Convert list of sentences of words into list of list of list of character indices.
+        @param sents (list[list[str]]): sentence(s) in words
+        @return word_ids (list[list[list[int]]]): sentence(s) in indices
+        """
+        ### YOUR CODE HERE for part 1e
+        ### TODO: 
+        ###     This method should convert characters in the input sentences into their 
+        ###     corresponding character indices using the character vocabulary char2id 
+        ###     defined above.
+        ###
+        ###     You must prepend each word with the `start_of_word` character and append 
+        ###     with the `end_of_word` character. 
+        return [[self.char2id.get(character, self.char_unk) for character in sentence] for sentence in sents]
+
+        ### END YOUR CODE
+
     def words2indices(self, sents):
         """ Convert list of sentences of words into list of list of indices.
         @param sents (list[list[str]]): sentence(s) in words
@@ -161,8 +178,26 @@ class VocabEntry(object):
         sents_with_char_indexes = self.words2charindices(sents)
         padded_sents_with_char_indexes = pad_sents_char(sents_with_char_indexes, 0)
         return torch.tensor(padded_sents_with_char_indexes, dtype=torch.long, device=device).transpose(0, 1)
-        
+
         ### END YOUR CODE
+
+    def to_input_tensor_char_2(self, sents: List[str], device: torch.device) -> torch.Tensor:
+        """ Convert list of sentences (words) into tensor with necessary padding for 
+        shorter sentences.
+
+        @param sents (List[List[str]]): list of sentences (words)
+        @param device: device on which to load the tensor, i.e. CPU or GPU
+
+        @returns sents_var: tensor of (max_sentence_length, batch_size, max_word_length)
+        """
+        ### YOUR CODE HERE for part 1g
+        ### TODO: 
+        ###     Connect `words2charindices()` and `pad_sents_char()` which you've defined in 
+        ###     previous parts
+        sents_with_char_indexes = self.words2charindices(sents)
+        padded_sents_with_char_indexes = pad_sents_char_2(sents_with_char_indexes, 0)
+        return torch.tensor(padded_sents_with_char_indexes, dtype=torch.long, device=device).transpose(0, 1)
+        
 
     def to_input_tensor(self, sents: List[List[str]], device: torch.device) -> torch.Tensor:
         """ Convert list of sentences (words) into tensor with necessary padding for 
@@ -177,6 +212,7 @@ class VocabEntry(object):
         sents_t = pad_sents(word_ids, self['<pad>'])
         sents_var = torch.tensor(sents_t, dtype=torch.long, device=device)
         return torch.t(sents_var)
+
 
     @staticmethod
     def from_corpus(corpus, size, freq_cutoff=2):

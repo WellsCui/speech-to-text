@@ -72,6 +72,28 @@ def pad_sents_char(sents, char_pad_token):
 
     return sents_padded
 
+def pad_sents_char_2(sents, char_pad_token):
+    """ Pad list of sentences according to the longest sentence in the batch and max_word_length.
+    @param sents (list[list[int]]): list of sentences, result of `sents2charindices()`
+        from `vocab.py`
+    @param char_pad_token (int): index of the character-padding token
+    @returns sents_padded (list[list[int]]): list of sentences where sentences shorter
+        than the max length sentenc are padded out with the appropriate pad token, such that
+        each sentence in the batch now has same number of character 
+        Output shape: (batch_size, max_sentence_length)
+    """
+    max_length=0
+    unpadded = []
+    for sentence in sents:
+        sent_chars=[]
+        for word in sentence:
+            sent_chars=sent_chars+word
+        sent_len = len(sent_chars)
+        if sent_len> max_length:
+            max_length = sent_len
+        unpadded.append(sent_chars)
+    return [sentence +[char_pad_token] * (max_length-len(sentence)) for sentence in unpadded]
+
 
 def pad_sents(sents, pad_token):
     """ Pad list of sentences according to the longest sentence in the batch.
@@ -146,6 +168,42 @@ def read_corpus_from_LJSpeech(textfile, source, line_num=-1):
         # only append <s> and </s> to the target sentence
         if source == 'tgt':
             sent = ['<s>'] + sent + ['</s>']
+        yield (voice_name, sent)
+        line_count += 1
+        if line_count == line_num:
+            break
+
+
+def read_corpus_from_LJSpeech_2(textfile, source, line_num=-1):
+    """ Read file, where each sentence is dilineated by a `\n`.
+    @param file_path (str): path to file containing corpus
+        each line is begin with 11 charactors wav file name:  'LJ001-0004|'
+        the rename text is the speech of the wav.                  
+    @param source (str): "tgt" or "src" indicating whether text
+        is of the source language or target language
+    """
+    data = []
+    line_count = 0
+    for record in open(textfile):
+        record_info = record.split('|')
+        voice_name = record_info[0]
+        sent = re.sub('[,";:\?\(\)]', '', record_info[-1])\
+            .lower()\
+            .replace("-- ", " ")\
+            .replace("-", " ")\
+            .replace("'s ", " 's ")\
+            .strip()
+        # .replace(". ", " ")\
+
+        # .split(' ')
+        # last_char = sent[-1][-1]
+        # if last_char in ['.', ';', ","]:
+        #     sent[-1] = sent[-1][:-1]
+        #     sent = sent + [last_char]
+
+        # only append <s> and </s> to the target sentence
+        # if source == 'tgt':
+        #     sent = ['<s>'] + sent + ['</s>']
         yield (voice_name, sent)
         line_count += 1
         if line_count == line_num:
@@ -467,7 +525,7 @@ def split_voice_with_pad(voice: List[float], chunk_size=1024, pad_value=0.0) -> 
     for i in range(len(voice)):
         if current_chunk['len'] > 1000 and isGap(current_chunk, i):
             current_chunk['end'] = i
-            current_chunk['data'] = voice[current_chunk['start']                                          :current_chunk['end']]
+            current_chunk['data'] = voice[current_chunk['start']:current_chunk['end']]
             chunks.append(withPads(current_chunk))
             current_chunk = {
                 'start': i,

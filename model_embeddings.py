@@ -42,19 +42,19 @@ class ModelEmbeddings(nn.Module):
         ### YOUR CODE HERE for part 1j
 
         self.embed_size = embed_size
-        self.embed_char_size = 50
+        self.embed_char_size = 256
         self.vocab = vocab
         self.char_embedding = nn.Embedding(len(vocab.char2id), self.embed_char_size, padding_idx=0)
-        self.cnn = CNN(self.embed_char_size, embed_size, 5)
-        self.highway = Highway(embed_size)
-        self.dropout = nn.Dropout()
+        # self.cnn = CNN(self.embed_char_size, embed_size, 5)
+        # self.highway = Highway(embed_size)
+        # self.dropout = nn.Dropout()
        
         ### END YOUR CODE
 
     def forward(self, input):
         """
         Looks up character-based CNN embeddings for the words in a batch of sentences.
-        @param input: Tensor of integers of shape (sentence_length, batch_size, max_word_length) where
+        @param input: Tensor of integers of shape (sentence_length, batch_size) where
             each integer is an index into the character vocabulary
 
         @param output: Tensor of shape (sentence_length, batch_size, embed_size), containing the 
@@ -66,14 +66,18 @@ class ModelEmbeddings(nn.Module):
         ## End A4 code
 
         ### YOUR CODE HERE for part 1j
-        X = self.char_embedding(input).transpose(2, 3)
-        combined_outputs = []
-        for word_index in range(input.shape[0]):
-            x_conv_out = self.cnn(X[word_index])
-            x_highway = self.highway(x_conv_out)
-            x_word_emb = self.dropout(x_highway)
-            combined_outputs.append(x_word_emb)
-        outputs = torch.stack(combined_outputs)
+        # X = self.char_embedding(input).transpose(2, 3)
+        # combined_outputs = []
+        # for word_index in range(input.shape[0]):
+        #     x_conv_out = self.cnn(X[word_index])
+        #     x_highway = self.highway(x_conv_out)
+        #     x_word_emb = self.dropout(x_highway)
+        #     combined_outputs.append(x_word_emb)
+        # outputs = torch.stack(combined_outputs)
+        
+        outputs = self.char_embedding(input)
+        # print("embedding input.shape:", input.size())
+        # print("embedding outputs.shape:", outputs.size())
         return outputs
         ### END YOUR CODE
 

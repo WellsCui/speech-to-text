@@ -74,7 +74,7 @@ class NMT(nn.Module):
         self.combined_output_projection = torch.nn.Linear(
             3*hidden_size, hidden_size,  bias=False)
         self.target_vocab_projection = torch.nn.Linear(
-            hidden_size, len(vocab.tgt), bias=False)
+            hidden_size, len(vocab.tgt.char2id), bias=False)
         self.dropout = nn.Dropout(p=dropout_rate)
 
         # END YOUR CODE FROM ASSIGNMENT 4
@@ -84,12 +84,12 @@ class NMT(nn.Module):
         else:
             self.charDecoder = None
 
-    def forward(self, source: List[np.array], target: List[List[str]]) -> torch.Tensor:
+    def forward(self, source: List[np.array], target: List[str]) -> torch.Tensor:
         """ Take a mini-batch of source and target sentences, compute the log-likelihood of
         target sentences under the language models learned by the NMT system.
 
         @param source (List[List[float]]): list of source voices
-        @param target (List[List[str]]): list of target sentence tokens, wrapped by `<s>` and `</s>`
+        @param target (List[str]): list of target sentence tokens
 
         @returns scores (Tensor): a variable/tensor of shape (b, ) representing the
                                     log-likelihood of generating the gold-standard target sentence for
@@ -114,41 +114,47 @@ class NMT(nn.Module):
             target, device=self.device)
         target_padded = self.model_embeddings_target.vocab.to_input_tensor(
             target, device=self.device)
+        target_padded_chars_2 = self.model_embeddings_target.vocab.to_input_tensor_char_2(
+            target, device=self.device)
 
         enc_hiddens, dec_init_state = self.encode(X, spectrum_CNN_lengths)
         enc_masks = self.generate_sent_masks(enc_hiddens, spectrum_CNN_lengths)
+
+        # print("target_padded_chars_2 shape:", target_padded_chars_2.size())
         combined_outputs = self.decode(
-            enc_hiddens, enc_masks, dec_init_state, target_padded_chars)
+            enc_hiddens, enc_masks, dec_init_state, target_padded_chars_2)
 
         # END YOUR CODE
 
+        # print("combined_outputs.shape:", combined_outputs.size())
         P = F.log_softmax(self.target_vocab_projection(
             combined_outputs), dim=-1)
+        # print("P.shape:", P.size())
 
         # Zero out, probabilities for which we have nothing in the target text
-        target_masks = (target_padded != self.vocab.tgt['<pad>']).float()
+        target_masks = (target_padded_chars_2 != self.vocab.tgt.char2id['<pad>']).float()
 
         # Compute log probability of generating true target words
         target_gold_words_log_prob = torch.gather(
-            P, index=target_padded[1:].unsqueeze(-1), dim=-1).squeeze(-1) * target_masks[1:]
+            P, index=target_padded_chars_2[1:].unsqueeze(-1), dim=-1).squeeze(-1) * target_masks[1:]
         # mhahn2 Small modification from A4 code.
         scores = target_gold_words_log_prob.sum()
 
-        if self.charDecoder is not None:
-            max_word_len = target_padded_chars.shape[-1]
+        # if self.charDecoder is not None:
+        #     max_word_len = target_padded_chars.shape[-1]
 
-            target_words = target_padded[1:].contiguous().view(-1)
-            target_chars = target_padded_chars[1:].contiguous(
-            ).view(-1, max_word_len)
-            target_outputs = combined_outputs.view(-1, self.hidden_size)
+        #     target_words = target_padded[1:].contiguous().view(-1)
+        #     target_chars = target_padded_chars[1:].contiguous(
+        #     ).view(-1, max_word_len)
+        #     target_outputs = combined_outputs.view(-1, self.hidden_size)
 
-            # torch.index_select(target_chars, dim=0, index=oovIndices)
-            target_chars_oov = target_chars
-            # torch.index_select(target_outputs, dim=0, index=oovIndices)
-            rnn_states_oov = target_outputs
-            oovs_losses = self.charDecoder.train_forward(target_chars_oov.t(
-            ), (rnn_states_oov.unsqueeze(0), rnn_states_oov.unsqueeze(0)))
-            scores = scores - oovs_losses
+        #     # torch.index_select(target_chars, dim=0, index=oovIndices)
+        #     target_chars_oov = target_chars
+        #     # torch.index_select(target_outputs, dim=0, index=oovIndices)
+        #     rnn_states_oov = target_outputs
+        #     oovs_losses = self.charDecoder.train_forward(target_chars_oov.t(
+        #     ), (rnn_states_oov.unsqueeze(0), rnn_states_oov.unsqueeze(0)))
+        #     scores = scores - oovs_losses
 
         return scores
 
@@ -195,7 +201,7 @@ class NMT(nn.Module):
         @param enc_masks (Tensor): Tensor of sentence masks (b, src_len), where
                                      b = batch size, src_len = maximum source sentence length.
         @param dec_init_state (tuple(Tensor, Tensor)): Initial state and cell for decoder
-        @param target_padded (Tensor): Gold-standard padded target sentences (tgt_len, b, max_word_length), where
+        @param target_padded (Tensor): Gold-standard padded target sentences (tgt_len, b), where
                                        tgt_len = maximum target sentence length, b = batch size.
         @returns combined_outputs (Tensor): combined output tensor  (tgt_len, b,  h), where
                                         tgt_len = maximum target sentence length, b = batch_size,  h = hidden size
@@ -220,7 +226,10 @@ class NMT(nn.Module):
         dec_state = dec_init_state
         prev_alpha_t = torch.zeros(batch_size, self.loc_window,
                                    enc_hiddens.size(1), device=self.device)
+        # print("Y shape:", Y.size())
         for Y_t in torch.split(Y, 1):
+            # print("Y_t shape:", Y_t.size())
+            # print("o_prev shape:", o_prev.size())
             Ybar_t = torch.cat((torch.squeeze(Y_t, 0), o_prev), 1)
             dec_state, o_t, e_t, prev_alpha_t = self.step(
                 Ybar_t, dec_state, enc_hiddens, enc_hiddens_proj, enc_masks, prev_alpha_t)
@@ -261,6 +270,11 @@ class NMT(nn.Module):
         combined_output = None
 
         # COPY OVER YOUR CODE FROM ASSIGNMENT 4
+
+        # print("Ybar_t.shape:", Ybar_t.size())
+        dec_hidden, dec_cell = dec_state
+        # print("dec_hidden.shape:", dec_hidden.size())
+        # print("dec_cell.shape:", dec_cell.size())
 
         dec_state = self.decoder(Ybar_t, dec_state)
         dec_hidden, dec_cell = dec_state
