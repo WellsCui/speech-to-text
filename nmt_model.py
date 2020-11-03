@@ -51,6 +51,7 @@ class NMT(nn.Module):
         # self.model_embeddings_source = ModelEmbeddings(embed_size, vocab.src)
         self.model_embeddings_target = ModelEmbeddings(embed_size, vocab.tgt)
 
+        self.batchNorm = nn.BatchNorm1d(embed_size)
         self.embed_size = embed_size
         self.hidden_size = hidden_size
         self.dropout_rate = dropout_rate
@@ -103,7 +104,8 @@ class NMT(nn.Module):
             padded_source, dtype=torch.float, device=self.device)
         # X = self.voiceCNN(source_padded_tensor).transpose(0, 1)
         # print("shape before spectrumCNN:", source_padded_tensor.shape)
-        X = self.spectrumCNN(source_padded_tensor)
+        
+        X = self.spectrumCNN(self.batchNorm(source_padded_tensor))
         spectrum_CNN_lengths = torch.tensor(source_lengths, dtype=torch.int, device=self.device)
         spectrum_CNN_lengths = spectrum_CNN_lengths - self.spectrum_cnn_kernel_size -1
         # print("shape after spectrumCNN:", X.shape)
