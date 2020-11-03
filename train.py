@@ -159,7 +159,7 @@ def train(model_config, data_config, output_path, device,
         loss_queue.put(report_loss / report_examples)
         train_losses.append({'epoch': epoch,
                              'iter': train_iter,
-                             'loss': report_loss / report_examples,
+                             'loss': report_loss / report_tgt_words,
                              'ppl': math.exp(report_loss / report_tgt_words),
                              'cum': cum_examples,
                              'speed': report_tgt_words / (time.time() - train_time)})

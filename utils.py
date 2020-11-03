@@ -347,7 +347,7 @@ def batch_iter_to_queue2(data_queue, batch_queue, loss_queue, epoch_num, batch_s
     @param batch_size (int): batch size
     @param shuffle (boolean): whether to randomly shuffle the dataset
     """
-    # print("geting train data ...")
+    print("geting train data ...")
     data = data_queue.get(True)
 
     train_index = 0
@@ -380,7 +380,7 @@ def batch_iter_to_queue2(data_queue, batch_queue, loss_queue, epoch_num, batch_s
             if loss_sum/batch_num < 0.5:
                 break
 
-        # print("geting train data ...")
+        print("geting train data ...")
         data = data_queue.get(True)
         # if data is not None:
         #     print("recieved train data (size = %d) ..." % len(data))
