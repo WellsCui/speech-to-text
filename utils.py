@@ -245,8 +245,8 @@ def load_train_data(train_file: str, voice_path: str, data_size: int, epoch_size
         np.random.shuffle(corpus_index_array)
         for idx in corpus_index_array:
             voice_file, sent = corpus_map[idx]
-            voice_file = voice_path+'/'+voice_file+'.wav'
-            if not os.path.isfile(voice_file):
+            # voice_file = voice_path+'/'+voice_file+'.wav'
+            if not os.path.isfile(voice_path+'/'+voice_file+'.wav'):
                 print("warning: voice file not exists: ", voice_file)
                 continue
             # samples, sample_rate = librosa.load(voice_file, sr=sample_rate)

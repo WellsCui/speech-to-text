@@ -2,14 +2,14 @@
     "train_config": {
         "device": "cuda:0",
         "epoch_size": 128,
-        "max_epoch": 8,
+        "max_epoch": 4,
         "batch_size": 16,
         "repeats": 1,
         "decade_rate": 1,
         "output_path": "./drive/My Drive/ai/checkpoints",
         "clip_grad": 5.0,
         "log_every": 10,
-        "valid_every": 500,
+        "valid_every": 100,
         "learning_rate": 0.0005
     },
     "data_config": {
