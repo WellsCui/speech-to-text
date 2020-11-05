@@ -106,7 +106,7 @@ class NMT(nn.Module):
         # print("shape before spectrumCNN:", source_padded_tensor.shape)
         
         X = self.spectrumCNN(self.batchNorm(source_padded_tensor))
-        spectrum_CNN_lengths = torch.tensor(source_lengths, dtype=torch.int, device=self.device)
+        spectrum_CNN_lengths = torch.tensor(source_lengths, dtype=torch.int)
         spectrum_CNN_lengths = spectrum_CNN_lengths - self.spectrum_cnn_kernel_size -1
         # print("shape after spectrumCNN:", X.shape)
         X = X.permute(2, 0, 1)
