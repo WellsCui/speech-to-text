@@ -22,6 +22,7 @@ import librosa  # for audio processing
 from multiprocessing import Process, Queue
 import re
 from typing import Callable, Any, Iterable
+from datetime import datetime
 
 
 def pad_sents_char(sents, char_pad_token):
@@ -72,6 +73,7 @@ def pad_sents_char(sents, char_pad_token):
 
     return sents_padded
 
+
 def pad_sents_char_2(sents, char_pad_token):
     """ Pad list of sentences according to the longest sentence in the batch and max_word_length.
     @param sents (list[list[int]]): list of sentences, result of `sents2charindices()`
@@ -82,17 +84,17 @@ def pad_sents_char_2(sents, char_pad_token):
         each sentence in the batch now has same number of character 
         Output shape: (batch_size, max_sentence_length)
     """
-    max_length=0
+    max_length = 0
     unpadded = []
     for sentence in sents:
-        sent_chars=[]
+        sent_chars = []
         for word in sentence:
-            sent_chars=sent_chars+word
+            sent_chars = sent_chars+word
         sent_len = len(sent_chars)
-        if sent_len> max_length:
+        if sent_len > max_length:
             max_length = sent_len
         unpadded.append(sent_chars)
-    return [sentence +[char_pad_token] * (max_length-len(sentence)) for sentence in unpadded]
+    return [sentence + [char_pad_token] * (max_length-len(sentence)) for sentence in unpadded]
 
 
 def pad_sents(sents, pad_token):
@@ -236,41 +238,72 @@ def load_train_data(train_file: str, voice_path: str, data_size: int, epoch_size
     print("remaining train data length:", remaining_records)
     corpus_map = []
 
+    epoch_queue = Queue(2)
+
+    def collect_epoch_queue():
+        print("start collecting epoch data ...")
+        epoch_records = []
+        data = epoch_queue.get(True)
+        while data is not None:
+            if data != []:
+                # print("added epoch data:", data[1])
+                epoch_records.append(data)
+            if len(epoch_records) == epoch_size or (data == [] and len(epoch_records)>0):
+                data_queue.put(epoch_records, True)
+                # print("pushed epoch data:", len(epoch_records))
+                epoch_records = []
+            data = epoch_queue.get(True)
+        
+        data_queue.put(None, True)
+        print("finished collecting epoch data")
+
+    collect_epoch_queue_process = Process(target=collect_epoch_queue)
+    collect_epoch_queue_process.start()
+
+    def build_record(voice_file, sent: str):
+        if not os.path.isfile(voice_path+'/'+voice_file+'.wav'):
+            print("warning: voice file not exists: ", voice_file)
+            return
+        voice = voice_loader(voice_file)
+        # print("push train record to epoch queue:", voice_file)
+        epoch_queue.put((voice, sent), True)
+
+
     for voice_file, sent in data:
         corpus_map.append((voice_file, sent))
     corpus_index_array = list(range(len(corpus_map)))
+    total_records = len(corpus_index_array)
     for rd in range(repeat):
         print("pushing new round train data:", rd)
+        shuffle_index = 0
 
         np.random.shuffle(corpus_index_array)
-        for idx in corpus_index_array:
-            voice_file, sent = corpus_map[idx]
-            # voice_file = voice_path+'/'+voice_file+'.wav'
-            if not os.path.isfile(voice_path+'/'+voice_file+'.wav'):
-                print("warning: voice file not exists: ", voice_file)
-                continue
-            # samples, sample_rate = librosa.load(voice_file, sr=sample_rate)
-            # voices.append(librosa.resample(
-            #     samples, sample_rate, resample_rate))
-            voice = voice_loader(voice_file)
-            voices.append(voice)
-            corpus.append(sent)
-            epoch_count = epoch_count + 1
-            data_count = data_count + 1
-            if epoch_count == epoch_size:
-                train_data = list(zip(voices, corpus))
-                data_queue.put(train_data, True)
-                print("pushed new train data")
-                index_array = list(range(epoch_size))
-                voices = []
-                corpus = []
-                epoch_count = remaining_records
-                for idx in index_array[:remaining_records]:
-                    voices.append(train_data[idx][0])
-                    corpus.append(train_data[idx][1])
+        while shuffle_index < total_records:
+            build_record_processes = []
+            epoch_start_time = datetime.now()
+            for _ in range(epoch_size):
+                if shuffle_index >= total_records:
+                    break
+                idx = corpus_index_array[shuffle_index]
+                shuffle_index = shuffle_index+1
+
+                voice_file, sent = corpus_map[idx]
+                build_record_process = Process(
+                    target=build_record, args=(voice_file, sent))
+                build_record_process.start()
+                build_record_processes.append(build_record_process)
+            
+            for ps in build_record_processes:
+                ps.join()
+            if shuffle_index >= total_records:
+                epoch_queue.put([], True)
+            print("epoch data collecting time:", datetime.now()-epoch_start_time)
+            
 
     print("all train data has been loaded")
-    data_queue.put(None, True)
+    epoch_queue.put(None, True)
+    collect_epoch_queue_process.join()
+
     return
 
 
@@ -355,6 +388,8 @@ def batch_iter_to_queue2(data_queue, batch_queue, loss_queue, epoch_num, batch_s
         train_index += 1
         # print("start new training %d: data(size = %s) in %d epoches : ..." %
         #       (train_index, len(data), epoch_num))
+        start_time = datetime.now()
+        print("trainning with new data ...")
         for epoch in range(epoch_num):
             # print("epoch:", epoch, "started")
             batch_num = math.ceil(len(data) / batch_size)
@@ -380,7 +415,7 @@ def batch_iter_to_queue2(data_queue, batch_queue, loss_queue, epoch_num, batch_s
             if loss_sum/batch_num < 0.5:
                 break
 
-        print("geting train data ...")
+        print("finished training: ", datetime.now()-start_time)
         data = data_queue.get(True)
         # if data is not None:
         #     print("recieved train data (size = %d) ..." % len(data))

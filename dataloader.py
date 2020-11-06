@@ -3,6 +3,7 @@ import librosa
 from utils import load_voices, load_voices_files, split_source_with_pad, read_corpus_from_LJSpeech, batch_iter, get_voice_files_and_corpus, batch_iter_to_queue, batch_iter_to_queue2, load_train_data
 import os
 import numpy as np
+from datetime import datetime
 
 class DataLoader(object):
     def __init__(self, train_file, dev_file, waves_path, sampling_rate, n_mels, mel_fmax):
@@ -45,13 +46,16 @@ class DataLoader(object):
 
 
     def loadVoice_new(self, voice_file):
+        # startTime = datetime.now()
         melspectrogram_file = self.waves_path+'/'+voice_file+'.npz'
         if os.path.isfile(melspectrogram_file):
-            print("loading compressed voice file:", voice_file)
-            return np.load(melspectrogram_file)["melspectrogram"]
+            data = np.load(melspectrogram_file)["melspectrogram"]
+            # print("time of loading compressed voice file:", datetime.now()-startTime)
+            return data
         wav, sr = librosa.load(self.waves_path+'/'+voice_file+'.wav')
         S = librosa.feature.melspectrogram(
             y=wav, sr=sr, n_mels=self.n_mels, fmax=self.mel_fmax)
+        # print("time of loading wav file:", datetime.now()-startTime)
         self.compressing_queue.put((voice_file, S), True)
         return S
 
