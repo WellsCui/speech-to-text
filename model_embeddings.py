@@ -42,7 +42,7 @@ class ModelEmbeddings(nn.Module):
         ### YOUR CODE HERE for part 1j
 
         self.embed_size = embed_size
-        self.embed_char_size = 256
+        self.embed_char_size = 512
         self.vocab = vocab
         self.char_embedding = nn.Embedding(len(vocab.char2id), self.embed_char_size, padding_idx=0)
         # self.cnn = CNN(self.embed_char_size, embed_size, 5)
