@@ -1,10 +1,10 @@
 {
     "train_config": {
         "device": "cuda:0",
-        "epoch_size": 128,
-        "max_epoch": 4,
+        "epoch_size": 512,
+        "max_epoch": 2,
         "batch_size": 16,
-        "repeats": 1,
+        "repeats": 10,
         "decade_rate": 1,
         "output_path": "./drive/My Drive/ai/checkpoints",
         "clip_grad": 5.0,

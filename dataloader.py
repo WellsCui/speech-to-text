@@ -47,9 +47,14 @@ class DataLoader(object):
 
     def loadVoice_new(self, voice_file):
         # startTime = datetime.now()
+        melspectrogram_file = "/tmp/"+voice_file+'.npz'
+        if os.path.isfile(melspectrogram_file):
+            data = np.load(melspectrogram_file)["melspectrogram"]
+            return data
         melspectrogram_file = self.waves_path+'/'+voice_file+'.npz'
         if os.path.isfile(melspectrogram_file):
             data = np.load(melspectrogram_file)["melspectrogram"]
+            np.savez_compressed("/tmp/"+voice_file, melspectrogram=data)
             # print("time of loading compressed voice file:", datetime.now()-startTime)
             return data
         wav, sr = librosa.load(self.waves_path+'/'+voice_file+'.wav')
